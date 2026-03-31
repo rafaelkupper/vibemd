@@ -183,8 +183,12 @@ final class MarkdownReaderDocumentTests: XCTestCase {
     func testRoutesLinksThroughInjectedTargetHandler() throws {
         let reader = RecordingReaderViewController()
         var handledTargets: [LinkTarget] = []
+        var openedMarkdownLinks: [(URL, String?)] = []
         let document = MarkdownReaderDocument(
             renderScheduler: { _, _, _ in DispatchWorkItem {} },
+            markdownLinkOpener: { url, anchorID in
+                openedMarkdownLinks.append((url, anchorID))
+            },
             linkTargetHandler: { handledTargets.append($0) },
             readerControllerFactory: { reader }
         )
@@ -197,10 +201,68 @@ final class MarkdownReaderDocumentTests: XCTestCase {
         reader.onOpenLink?(URL(fileURLWithPath: "/tmp/docs/Guide.md"))
         reader.onOpenLink?(URL(fileURLWithPath: "/tmp/docs/notes.txt"))
 
-        XCTAssertEqual(handledTargets.count, 3)
+        XCTAssertEqual(handledTargets.count, 2)
+        XCTAssertEqual(openedMarkdownLinks.count, 1)
         XCTAssertEqual(handledTargets[0], .external(URL(string: "https://example.com")!))
-        XCTAssertEqual(handledTargets[1], .markdownFile(URL(fileURLWithPath: "/tmp/docs/Guide.md")))
-        XCTAssertEqual(handledTargets[2], .otherFile(URL(fileURLWithPath: "/tmp/docs/notes.txt")))
+        XCTAssertEqual(handledTargets[1], .otherFile(URL(fileURLWithPath: "/tmp/docs/notes.txt")))
+        XCTAssertEqual(openedMarkdownLinks[0].0, URL(fileURLWithPath: "/tmp/docs/Guide.md"))
+        XCTAssertNil(openedMarkdownLinks[0].1)
+        document.close()
+    }
+
+    func testSameDocumentFragmentLinkScrollsInCurrentReaderWithoutOpeningNewDocument() throws {
+        let reader = RecordingReaderViewController()
+        var handledTargets: [LinkTarget] = []
+        var openedMarkdownLinks: [(URL, String?)] = []
+        let document = MarkdownReaderDocument(
+            renderScheduler: { _, _, _ in DispatchWorkItem {} },
+            markdownLinkOpener: { url, anchorID in
+                openedMarkdownLinks.append((url, anchorID))
+            },
+            linkTargetHandler: { handledTargets.append($0) },
+            readerControllerFactory: { reader }
+        )
+        let fileURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Anchor.md")
+        document.fileURL = fileURL
+
+        try document.read(from: Data("# Anchor".utf8), ofType: "dev.vibemd.markdown")
+        document.makeWindowControllers()
+
+        var components = URLComponents(url: fileURL, resolvingAgainstBaseURL: false)
+        components?.fragment = "heading-ladder"
+        reader.onOpenLink?(try XCTUnwrap(components?.url))
+
+        XCTAssertEqual(reader.scrolledHeadingIDs, ["heading-ladder"])
+        XCTAssertTrue(handledTargets.isEmpty)
+        XCTAssertTrue(openedMarkdownLinks.isEmpty)
+        document.close()
+    }
+
+    func testCrossDocumentFragmentLinkUsesMarkdownOpenPathAndPreservesAnchor() throws {
+        let reader = RecordingReaderViewController()
+        var openedMarkdownLinks: [(URL, String?)] = []
+        let document = MarkdownReaderDocument(
+            renderScheduler: { _, _, _ in DispatchWorkItem {} },
+            markdownLinkOpener: { url, anchorID in
+                openedMarkdownLinks.append((url, anchorID))
+            },
+            readerControllerFactory: { reader }
+        )
+        let sourceURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Source.md")
+        let targetURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Guide.md")
+        document.fileURL = sourceURL
+
+        try document.read(from: Data("# Source".utf8), ofType: "dev.vibemd.markdown")
+        document.makeWindowControllers()
+
+        var components = URLComponents(url: targetURL, resolvingAgainstBaseURL: false)
+        components?.fragment = "deep-link"
+        reader.onOpenLink?(try XCTUnwrap(components?.url))
+
+        XCTAssertEqual(openedMarkdownLinks.count, 1)
+        XCTAssertEqual(openedMarkdownLinks[0].0, targetURL)
+        XCTAssertEqual(openedMarkdownLinks[0].1, "deep-link")
+        XCTAssertTrue(reader.scrolledHeadingIDs.isEmpty)
         document.close()
     }
 
@@ -310,6 +372,37 @@ final class MarkdownReaderDocumentTests: XCTestCase {
 
         XCTAssertEqual(store.load(for: firstURL, fingerprint: firstFingerprint)?.fraction ?? -1, 0.73, accuracy: 0.0001)
         XCTAssertEqual(try XCTUnwrap(reader.appliedInitialScrollFractions.last ?? nil), 0.41, accuracy: 0.0001)
+        document.close()
+    }
+
+    func testPendingAnchorOverridesPersistedScrollRestoreAndScrollsAfterRenderFinishes() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let store = ScrollStateStore(defaults: defaults)
+        let reader = RecordingReaderViewController()
+        var capturedCompletion: ((WebKitRenderOutput) -> Void)?
+        let fileURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("Anchored.md")
+        let data = Data("# Anchored".utf8)
+        let fingerprint = FileFingerprint.sha256Hex(for: data)
+        store.save(fraction: 0.58, for: fileURL, fingerprint: fingerprint)
+
+        let document = MarkdownReaderDocument(
+            scrollStateStore: store,
+            renderScheduler: { _, _, completion in
+                capturedCompletion = completion
+                return DispatchWorkItem {}
+            },
+            readerControllerFactory: { reader }
+        )
+        document.fileURL = fileURL
+        document.navigateToAnchor(id: "deep-link")
+
+        try document.read(from: data, ofType: "dev.vibemd.markdown")
+        document.makeWindowControllers()
+        capturedCompletion?(WebKitRenderOutput(html: "<html><body>Anchored</body></html>", baseURL: nil))
+        reader.onNavigationFinished?()
+
+        XCTAssertNil(reader.appliedInitialScrollFractions.last ?? nil)
+        XCTAssertEqual(reader.scrolledHeadingIDs, ["deep-link"])
         document.close()
     }
 

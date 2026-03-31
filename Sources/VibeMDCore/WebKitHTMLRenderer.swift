@@ -58,6 +58,9 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
     let assetResolver: AssetResolver
     let codeSyntaxHighlighter: CodeSyntaxHighlighter
     private var headingSlugger = HeadingAnchorSlugger()
+    private var inTableHead = false
+    private var currentTableColumn = 0
+    private var currentTableColumnAlignments: [Table.ColumnAlignment?] = []
 
     init(
         baseURL: URL?,
@@ -209,7 +212,89 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
     }
 
     mutating func visitTable(_ table: Table) -> String {
-        tableHTML(from: table.format())
+        guard !table.isEmpty, table.maxColumnCount > 0 else {
+            return "<p class=\"fallback-block\">\(table.format().escapedHTML)</p>"
+        }
+
+        let rows = tableTextRows(for: table)
+        let columnWidths = tableColumnWidthPercentages(for: rows, columnCount: table.maxColumnCount)
+        let columns = columnWidths.map { width in
+            "<col style=\"width: \(width)%\">"
+        }.joined()
+
+        let previousAlignments = currentTableColumnAlignments
+        let previousColumn = currentTableColumn
+        let previousInHead = inTableHead
+
+        currentTableColumnAlignments = normalizedTableColumnAlignments(for: table)
+        currentTableColumn = 0
+        inTableHead = false
+        let content = descend(table)
+
+        currentTableColumnAlignments = previousAlignments
+        currentTableColumn = previousColumn
+        inTableHead = previousInHead
+
+        return """
+        <table>
+          <colgroup>\(columns)</colgroup>
+          \(content)
+        </table>
+        """
+    }
+
+    mutating func visitTableHead(_ tableHead: Table.Head) -> String {
+        let previousInHead = inTableHead
+        let previousColumn = currentTableColumn
+        inTableHead = true
+        currentTableColumn = 0
+        let content = descend(tableHead)
+        inTableHead = previousInHead
+        currentTableColumn = previousColumn
+        return "<thead><tr>\(content)</tr></thead>"
+    }
+
+    mutating func visitTableBody(_ tableBody: Table.Body) -> String {
+        guard !tableBody.isEmpty else {
+            return ""
+        }
+
+        return "<tbody>\(descend(tableBody))</tbody>"
+    }
+
+    mutating func visitTableRow(_ tableRow: Table.Row) -> String {
+        let previousColumn = currentTableColumn
+        currentTableColumn = 0
+        let content = descend(tableRow)
+        currentTableColumn = previousColumn
+        return "<tr>\(content)</tr>"
+    }
+
+    mutating func visitTableCell(_ tableCell: Table.Cell) -> String {
+        guard tableCell.colspan > 0, tableCell.rowspan > 0 else {
+            currentTableColumn += 1
+            return ""
+        }
+
+        let element = inTableHead ? "th" : "td"
+        let colspan = max(Int(tableCell.colspan), 1)
+        let rowspan = max(Int(tableCell.rowspan), 1)
+        let columnIndex = currentTableColumn
+        currentTableColumn += colspan
+
+        var attributes = ""
+        if columnIndex < currentTableColumnAlignments.count,
+           let alignment = currentTableColumnAlignments[columnIndex] {
+            attributes += " align=\"\(htmlAlignmentValue(for: alignment))\""
+        }
+        if rowspan > 1 {
+            attributes += " rowspan=\"\(rowspan)\""
+        }
+        if colspan > 1 {
+            attributes += " colspan=\"\(colspan)\""
+        }
+
+        return "<\(element)\(attributes)>\(descend(tableCell))</\(element)>"
     }
 
     mutating func visitHTMLBlock(_ html: HTMLBlock) -> String {
@@ -238,32 +323,6 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
 
     private mutating func descend(_ markup: Markup) -> String {
         markup.children.map { visit($0) }.joined()
-    }
-
-    private func tableHTML(from markdown: String) -> String {
-        let rows = parseTableRows(from: markdown)
-        guard !rows.isEmpty else {
-            return "<p class=\"fallback-block\">\(markdown.escapedHTML)</p>"
-        }
-
-        let header = rows.first ?? []
-        let bodyRows = Array(rows.dropFirst())
-        let columnWidths = tableColumnWidthPercentages(for: rows, columnCount: header.count)
-        let columns = columnWidths.map { width in
-            "<col style=\"width: \(width)%\">"
-        }.joined()
-        let headerHTML = header.map { "<th>\($0.escapedHTML)</th>" }.joined()
-        let bodyHTML = bodyRows.map { row in
-            "<tr>\(row.map { "<td>\($0.escapedHTML)</td>" }.joined())</tr>"
-        }.joined()
-
-        return """
-        <table>
-          <colgroup>\(columns)</colgroup>
-          <thead><tr>\(headerHTML)</tr></thead>
-          <tbody>\(bodyHTML)</tbody>
-        </table>
-        """
     }
 
     private func tableColumnWidthPercentages(for rows: [[String]], columnCount: Int) -> [CGFloat] {
@@ -317,34 +376,57 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
         }
     }
 
-    private func parseTableRows(from markdown: String) -> [[String]] {
-        let lines = markdown
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
-            .filter { $0.contains("|") }
-
-        var rows: [[String]] = []
-        for (index, line) in lines.enumerated() {
-            if index == 1, isAlignmentRow(line) {
-                continue
-            }
-
-            let rawCells = line
-                .split(separator: "|", omittingEmptySubsequences: false)
-                .map { String($0).trimmingCharacters(in: .whitespaces) }
-            let cells = rawCells.filter { !$0.isEmpty }
-            if !cells.isEmpty {
-                rows.append(cells)
-            }
-        }
-
+    private func tableTextRows(for table: Table) -> [[String]] {
+        var rows = [tableTextRow(for: table.head, columnCount: table.maxColumnCount)]
+        rows.append(contentsOf: table.body.rows.map { tableTextRow(for: $0, columnCount: table.maxColumnCount) })
         return rows
     }
 
-    private func isAlignmentRow(_ line: String) -> Bool {
-        let candidate = line.replacingOccurrences(of: "|", with: "")
-        let charset = CharacterSet(charactersIn: ":- ")
-        return candidate.unicodeScalars.allSatisfy { charset.contains($0) }
+    private func tableTextRow(for row: some Markup, columnCount: Int) -> [String] {
+        let cells = row.children.compactMap { $0 as? Table.Cell }
+        var texts: [String] = []
+
+        for cell in cells {
+            if cell.colspan == 0 || cell.rowspan == 0 {
+                texts.append("")
+                continue
+            }
+
+            let colspan = max(Int(cell.colspan), 1)
+            texts.append(cell.plainText.normalizedHeadingText)
+            if colspan > 1 {
+                texts.append(contentsOf: repeatElement("", count: colspan - 1))
+            }
+        }
+
+        if texts.count < columnCount {
+            texts.append(contentsOf: repeatElement("", count: columnCount - texts.count))
+        } else if texts.count > columnCount {
+            texts = Array(texts.prefix(columnCount))
+        }
+
+        return texts
+    }
+
+    private func normalizedTableColumnAlignments(for table: Table) -> [Table.ColumnAlignment?] {
+        var alignments = table.columnAlignments
+        if alignments.count < table.maxColumnCount {
+            alignments.append(contentsOf: repeatElement(nil, count: table.maxColumnCount - alignments.count))
+        } else if alignments.count > table.maxColumnCount {
+            alignments = Array(alignments.prefix(table.maxColumnCount))
+        }
+        return alignments
+    }
+
+    private func htmlAlignmentValue(for alignment: Table.ColumnAlignment) -> String {
+        switch alignment {
+        case .left:
+            return "left"
+        case .center:
+            return "center"
+        case .right:
+            return "right"
+        }
     }
 
     private func taskListState(for listItem: ListItem) -> Bool? {

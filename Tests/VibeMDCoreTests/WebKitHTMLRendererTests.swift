@@ -167,6 +167,24 @@ final class WebKitHTMLRendererTests: XCTestCase {
         XCTAssertEqual(heuristicOutput.html.numberOfMatches(of: "<col style=\"width:"), 5)
     }
 
+    func testTableCellsRenderInlineMarkdownInsteadOfEscapedSourceText() {
+        let output = render(
+            #"""
+            | **Name** | Value |
+            | :-- | --: |
+            | `code` and [link](https://example.com) | **bold** with *emphasis* and ~~gone~~ |
+            """#
+        )
+
+        XCTAssertTrue(output.html.contains("<th align=\"left\"><strong>Name</strong></th>"))
+        XCTAssertTrue(output.html.contains("<th align=\"right\">Value</th>"))
+        XCTAssertTrue(output.html.contains("<td align=\"left\"><code>code</code> and <a href=\"https://example.com\">link</a></td>"))
+        XCTAssertTrue(output.html.contains("<td align=\"right\"><strong>bold</strong> with <em>emphasis</em> and <del>gone</del></td>"))
+        XCTAssertFalse(output.html.contains("**bold**"))
+        XCTAssertFalse(output.html.contains("`code`"))
+        XCTAssertFalse(output.html.contains("~~gone~~"))
+    }
+
     func testNestedListsAndTaskListsRenderNestedHTML() {
         let output = render(
             """

@@ -7,21 +7,25 @@ enum MarkdownDocumentOpener {
     static func open(urls: [URL]) {
         for url in urls {
             do {
-                try open(url: url)
+                try open(url: url, anchorID: nil)
             } catch {
                 NSApp.presentError(error)
             }
         }
     }
 
-    static func open(url: URL) throws {
+    static func open(url: URL, anchorID: String? = nil) throws {
         let normalizedURL = normalizedFileURL(for: url)
         guard supports(url: normalizedURL) else {
             throw CocoaError(.fileReadUnsupportedScheme)
         }
+        let requestedAnchorID = anchorID ?? url.fragment
 
         if let existingDocument = OpenDocumentRegistry.shared.document(for: normalizedURL) {
             focus(document: existingDocument)
+            if let requestedAnchorID, !requestedAnchorID.isEmpty {
+                existingDocument.navigateToAnchor(id: requestedAnchorID)
+            }
             return
         }
 
@@ -29,6 +33,9 @@ enum MarkdownDocumentOpener {
         let document = MarkdownReaderDocument()
         document.fileURL = normalizedURL
         document.initialCascadeSourceWindow = cascadeSourceWindow
+        if let requestedAnchorID, !requestedAnchorID.isEmpty {
+            document.navigateToAnchor(id: requestedAnchorID)
+        }
         let data = try Data(contentsOf: normalizedURL)
         try document.read(from: data, ofType: "dev.vibemd.markdown")
         NSDocumentController.shared.addDocument(document)

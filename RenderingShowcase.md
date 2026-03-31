@@ -5,6 +5,8 @@ Open this file in VibeMD to preview the current reader surface. It is meant to e
 Quick links:
 - External link: [swift-markdown](https://github.com/swiftlang/swift-markdown)
 - Local markdown link: [Linked Note](LinkedNote.md)
+- Same-document anchor: [Jump to Heading Ladder](#heading-ladder)
+- Same-document deep anchor: [Jump to Tables](#tables)
 - Local non-markdown link: [MIT License](LICENSE)
 
 ## Heading Ladder
@@ -265,10 +267,16 @@ class Reader {
 | --- | --- | --- | ---: |
 | Paragraphs | Native text layout | Comfortable rhythm and readable width | 9 |
 | Headings | Strong hierarchy | Distinct scale without giant spacing cliffs | 9 |
-| Inline code | Soft chip styling | Monospaced text with restrained contrast | 8 |
+| Inline code | `Soft chip styling` | Monospaced text with restrained contrast | 8 |
 | Code blocks | Native text blocks | Padded container, calmer border, wrapped lines | 8 |
-| Blockquotes | Left rule and soft fill | Separation without looking like a callout card | 8 |
-| Tables | Native text tables | Real cells, subtle borders, alternating rows | 8 |
+| Blockquotes | Left rule and **soft fill** | Separation without looking like a callout card | 8 |
+| Tables | Native text tables with [same-file anchors](#heading-ladder) | Real cells, subtle borders, alternating rows, and inline markdown rendering | 8 |
+
+| Markdown In Cells | Example Content | Expected Rendering |
+| --- | --- | --- |
+| Strong + code | **Bold text** with `inline code` | Both should render, not show raw markdown |
+| Mixed inline | *Emphasis*, ~~strikethrough~~, and [local link](LinkedNote.md) | Inline styles and links should all work inside cells |
+| Same-document anchor | [Back to top section](#vibemd-rendering-showcase) | Clicking should scroll in this window, not open a new one |
 
 ## Image
 

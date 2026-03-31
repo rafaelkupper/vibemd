@@ -8,6 +8,7 @@ final class MarkdownReaderDocument: NSDocument {
         _ baseURL: URL?,
         _ completion: @escaping (WebKitRenderOutput) -> Void
     ) -> DispatchWorkItem
+    typealias MarkdownLinkOpener = @MainActor (_ url: URL, _ anchorID: String?) -> Void
     typealias LinkTargetHandler = @MainActor (LinkTarget) -> Void
     typealias ReaderControllerFactory = () -> WebKitReaderViewController
     typealias SourceLoader = @Sendable (_ fileURL: URL) throws -> LoadedMarkdownSource
@@ -15,6 +16,7 @@ final class MarkdownReaderDocument: NSDocument {
     private let assetResolver: AssetResolver
     private let scrollStateStore: ScrollStateStore
     private let renderScheduler: RenderScheduler
+    private let markdownLinkOpener: MarkdownLinkOpener
     private let linkTargetHandler: LinkTargetHandler
     private let readerControllerFactory: ReaderControllerFactory
     private let statisticPreferenceStore: DocumentStatisticPreferenceStore
@@ -31,12 +33,15 @@ final class MarkdownReaderDocument: NSDocument {
     private var currentSidebarEntries: [DocumentSidebarEntry] = []
     private var currentOutlineItems: [DocumentOutlineItem] = []
     private var currentActiveHeadingID: String?
+    private var pendingNavigationAnchorID: String?
+    private var consumePendingAnchorOnNextNavigationFinish = false
     var initialCascadeSourceWindow: NSWindow?
 
     override init() {
         self.assetResolver = AssetResolver()
         self.scrollStateStore = ScrollStateStore()
         self.renderScheduler = MarkdownRenderWorker.schedule
+        self.markdownLinkOpener = MarkdownReaderDocument.defaultOpenMarkdownLink
         self.linkTargetHandler = MarkdownReaderDocument.defaultHandle
         self.readerControllerFactory = { WebKitReaderViewController() }
         self.statisticPreferenceStore = .shared
@@ -48,6 +53,7 @@ final class MarkdownReaderDocument: NSDocument {
         assetResolver: AssetResolver = AssetResolver(),
         scrollStateStore: ScrollStateStore = ScrollStateStore(),
         renderScheduler: @escaping RenderScheduler = MarkdownRenderWorker.schedule,
+        markdownLinkOpener: @escaping MarkdownLinkOpener = MarkdownReaderDocument.defaultOpenMarkdownLink,
         linkTargetHandler: @escaping LinkTargetHandler = MarkdownReaderDocument.defaultHandle,
         readerControllerFactory: @escaping ReaderControllerFactory = { WebKitReaderViewController() },
         statisticPreferenceStore: DocumentStatisticPreferenceStore = .shared,
@@ -56,6 +62,7 @@ final class MarkdownReaderDocument: NSDocument {
         self.assetResolver = assetResolver
         self.scrollStateStore = scrollStateStore
         self.renderScheduler = renderScheduler
+        self.markdownLinkOpener = markdownLinkOpener
         self.linkTargetHandler = linkTargetHandler
         self.readerControllerFactory = readerControllerFactory
         self.statisticPreferenceStore = statisticPreferenceStore
@@ -145,8 +152,13 @@ final class MarkdownReaderDocument: NSDocument {
 
         let sourceText = sourceText
         let fileURL = fileURL
-        let restoreFraction = initialScrollFractionOverride ?? fileURL.flatMap {
-            scrollStateStore.load(for: $0, fingerprint: fileFingerprint)?.fraction
+        let restoreFraction: Double?
+        if pendingNavigationAnchorID == nil {
+            restoreFraction = initialScrollFractionOverride ?? fileURL.flatMap {
+                scrollStateStore.load(for: $0, fingerprint: fileFingerprint)?.fraction
+            }
+        } else {
+            restoreFraction = nil
         }
         let token = UUID()
         renderToken = token
@@ -167,12 +179,27 @@ final class MarkdownReaderDocument: NSDocument {
             self.currentOutlineItems = output.outlineItems
             self.documentWindowController?.apply(documentStatistics: output.statistics)
             self.documentWindowController?.apply(sidebarEntries: output.sidebarEntries, outlineItems: output.outlineItems)
+            self.consumePendingAnchorOnNextNavigationFinish = self.pendingNavigationAnchorID != nil
             self.readerController?.apply(renderOutput: output, initialScrollFraction: restoreFraction)
         }
     }
 
     private func openResolvedLink(_ url: URL) {
-        linkTargetHandler(assetResolver.classify(url))
+        if let sameDocumentAnchorID = sameDocumentAnchorID(for: url) {
+            readerController?.scrollToHeading(id: sameDocumentAnchorID)
+            return
+        }
+
+        let target = assetResolver.classify(url)
+        switch target {
+        case .markdownFile(let markdownURL):
+            markdownLinkOpener(
+                MarkdownDocumentOpener.normalizedFileURL(for: markdownURL),
+                markdownURL.fragment
+            )
+        default:
+            linkTargetHandler(target)
+        }
     }
 
     private func persistScrollFraction(_ fraction: Double) {
@@ -203,7 +230,24 @@ final class MarkdownReaderDocument: NSDocument {
             self?.currentActiveHeadingID = anchorID
             self?.documentWindowController?.setActiveOutlineAnchorID(anchorID)
         }
+        readerController.onNavigationFinished = { [weak self, weak readerController] in
+            self?.consumePendingNavigationAnchorIfNeeded(using: readerController)
+        }
         return readerController
+    }
+
+    func navigateToAnchor(id: String) {
+        guard !id.isEmpty else {
+            return
+        }
+
+        pendingNavigationAnchorID = id
+        consumePendingAnchorOnNextNavigationFinish = false
+
+        if let readerController {
+            readerController.scrollToHeading(id: id)
+            pendingNavigationAnchorID = nil
+        }
     }
 
     func navigateInCurrentWindow(to url: URL) {
@@ -267,6 +311,14 @@ final class MarkdownReaderDocument: NSDocument {
         }
     }
 
+    private static func defaultOpenMarkdownLink(_ url: URL, _ anchorID: String?) {
+        do {
+            try MarkdownDocumentOpener.open(url: url, anchorID: anchorID)
+        } catch {
+            NSApp.presentError(error)
+        }
+    }
+
     nonisolated private static func loadSource(from fileURL: URL) throws -> LoadedMarkdownSource {
         let data = try Data(contentsOf: fileURL)
         let sourceText: String
@@ -280,6 +332,34 @@ final class MarkdownReaderDocument: NSDocument {
             sourceText: sourceText,
             fingerprint: FileFingerprint.sha256Hex(for: data)
         )
+    }
+
+    private func sameDocumentAnchorID(for url: URL) -> String? {
+        guard
+            let currentFileURL = fileURL,
+            url.isFileURL,
+            let fragment = url.fragment,
+            !fragment.isEmpty,
+            MarkdownDocumentOpener.normalizedFileURL(for: currentFileURL) == MarkdownDocumentOpener.normalizedFileURL(for: url)
+        else {
+            return nil
+        }
+
+        return fragment
+    }
+
+    private func consumePendingNavigationAnchorIfNeeded(using readerController: WebKitReaderViewController?) {
+        guard
+            consumePendingAnchorOnNextNavigationFinish,
+            let anchorID = pendingNavigationAnchorID,
+            let readerController
+        else {
+            return
+        }
+
+        consumePendingAnchorOnNextNavigationFinish = false
+        pendingNavigationAnchorID = nil
+        readerController.scrollToHeading(id: anchorID)
     }
 }
 
