@@ -10,6 +10,8 @@ struct CodeSyntaxHighlighter {
         case function
         case member
         case meta
+        case addition
+        case deletion
     }
 
     struct PresentationRun: Equatable {
@@ -26,6 +28,8 @@ struct CodeSyntaxHighlighter {
         case function
         case member
         case meta
+        case addition
+        case deletion
     }
 
     private struct HighlightRule {
@@ -139,6 +143,10 @@ struct CodeSyntaxHighlighter {
         switch trimmed {
         case "shell", "shellscript":
             return "bash"
+        case "xhtml", "xml", "svg":
+            return "html"
+        case "scss":
+            return "css"
         case "golang":
             return "go"
         case "rb":
@@ -159,6 +167,10 @@ struct CodeSyntaxHighlighter {
             return "rust"
         case "hs":
             return "haskell"
+        case "patch":
+            return "diff"
+        case "docker":
+            return "dockerfile"
         default:
             return trimmed
         }
@@ -176,6 +188,12 @@ struct CodeSyntaxHighlighter {
             yamlRules
         case "markdown", "md":
             markdownRules
+        case "html":
+            htmlRules
+        case "css":
+            cssRules
+        case "toml":
+            tomlRules
         case "go":
             goRules
         case "ruby":
@@ -202,6 +220,10 @@ struct CodeSyntaxHighlighter {
             haskellRules
         case "java":
             javaRules
+        case "diff":
+            diffRules
+        case "dockerfile":
+            dockerfileRules
         default:
             []
         }
@@ -225,6 +247,10 @@ struct CodeSyntaxHighlighter {
             .member
         case .meta:
             .meta
+        case .addition:
+            .addition
+        case .deletion:
+            .deletion
         }
     }
 
@@ -246,6 +272,10 @@ struct CodeSyntaxHighlighter {
             return "cm-property"
         case .meta:
             return "cm-atom"
+        case .addition:
+            return "cm-positive"
+        case .deletion:
+            return "cm-negative"
         }
     }
 
@@ -385,6 +415,40 @@ struct CodeSyntaxHighlighter {
             rule(#"^```.*$"#, options: [.anchorsMatchLines], color: .keyword),
             rule(#"`[^`]+`"#, color: .string),
             rule(#"<!--[\s\S]*?-->"#, color: .comment),
+        ]
+    }
+
+    private var htmlRules: [HighlightRule] {
+        [
+            rule(#"</?\s*([A-Za-z_:][A-Za-z0-9:._-]*)\b"#, color: .type, captureGroup: 1),
+            rule(#"\b([A-Za-z_:][A-Za-z0-9:._-]*)(?=\s*=)"#, color: .member, captureGroup: 1),
+            quotedStringRule,
+            rule(#"<!DOCTYPE[^>]*>|<\?xml[\s\S]*?\?>"#, options: [.caseInsensitive], color: .meta),
+            rule(#"<!--[\s\S]*?-->"#, color: .comment),
+        ]
+    }
+
+    private var cssRules: [HighlightRule] {
+        [
+            rule(#"^\s*([^\{\n][^{}\n]*?)(?=\s*\{)"#, options: [.anchorsMatchLines], color: .type, captureGroup: 1),
+            rule(#"^\s*([A-Za-z_-][A-Za-z0-9_-]*)\s*:"#, options: [.anchorsMatchLines], color: .member, captureGroup: 1),
+            rule(#"@[A-Za-z_-][A-Za-z0-9_-]*"#, color: .meta),
+            rule(#"\b([A-Za-z_-][A-Za-z0-9_-]*)(?=\()"#, color: .function, captureGroup: 1),
+            rule(#"#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})\b"#, color: .number),
+            numberRule,
+            quotedStringRule,
+            rule(#"//.*$|/\*[\s\S]*?\*/"#, options: [.anchorsMatchLines], color: .comment),
+        ]
+    }
+
+    private var tomlRules: [HighlightRule] {
+        [
+            rule(#"^\s*\[\[?[^\]]+\]\]?\s*$"#, options: [.anchorsMatchLines], color: .meta),
+            rule(#"^\s*([A-Za-z0-9_.-]+)\s*="#, options: [.anchorsMatchLines], color: .type, captureGroup: 1),
+            quotedStringRule,
+            numberRule,
+            wordRule(["true", "false"], color: .keyword),
+            hashCommentRule,
         ]
     }
 
@@ -641,6 +705,26 @@ struct CodeSyntaxHighlighter {
             quotedStringRule,
             annotationRule,
             slashCommentRule,
+        ]
+    }
+
+    private var diffRules: [HighlightRule] {
+        [
+            rule(#"^\+(?!\+\+).*$"#, options: [.anchorsMatchLines], color: .addition),
+            rule(#"^-(?!--).*$"#, options: [.anchorsMatchLines], color: .deletion),
+            rule(#"^(?:diff --git .*|index [0-9A-Fa-f]+\.\.[0-9A-Fa-f]+.*|@@ .* @@.*|--- .*|\+\+\+ .*|new file mode .*|deleted file mode .*|similarity index .*|rename from .*|rename to .*|Binary files .*|old mode .*|new mode .*)$"#, options: [.anchorsMatchLines], color: .meta),
+        ]
+    }
+
+    private var dockerfileRules: [HighlightRule] {
+        [
+            rule(#"^\s*(FROM|RUN|CMD|LABEL|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|USER|WORKDIR|ARG|ONBUILD|STOPSIGNAL|HEALTHCHECK|SHELL|MAINTAINER)\b"#, options: [.anchorsMatchLines, .caseInsensitive], color: .keyword, captureGroup: 1),
+            rule(#"\b(AS)\b"#, options: [.caseInsensitive], color: .keyword, captureGroup: 1),
+            rule(#"^\s*FROM\s+([^\s]+)"#, options: [.anchorsMatchLines, .caseInsensitive], color: .string, captureGroup: 1),
+            quotedStringRule,
+            numberRule,
+            rule(#"\$\{[^}]+\}|\$[A-Za-z_][A-Za-z0-9_]*"#, color: .member),
+            hashCommentRule,
         ]
     }
 }

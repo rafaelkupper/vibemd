@@ -262,11 +262,21 @@ private struct DocumentPreviewExtractor: MarkupVisitor {
     }
 
     mutating func visitHTMLBlock(_ html: HTMLBlock) -> String? {
-        html.format().strippedHTMLText.normalizedPreviewText
+        MarkdownSemanticSupport.strippedHTMLText(from: html.format()).normalizedPreviewText
     }
 
     mutating func visitBlockDirective(_ blockDirective: BlockDirective) -> String? {
-        blockDirective.format().normalizedPreviewText
+        if let callout = MarkdownSemanticSupport.calloutDefinition(for: blockDirective) {
+            let body = blockDirective.children
+                .map(\.plainText)
+                .map(\.normalizedPreviewText)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+
+            return (body.isEmpty ? callout.label : "\(callout.label) \(body)").normalizedPreviewText
+        }
+
+        return blockDirective.format().normalizedPreviewText
     }
 }
 
@@ -325,24 +335,44 @@ struct HeadingAnchorSlugger {
 
 private extension Markup {
     var plainText: String {
-        if let text = self as? Text {
+        switch self {
+        case let text as Text:
             return text.string
-        }
-
-        if let inlineCode = self as? InlineCode {
+        case is SoftBreak:
+            return " "
+        case is LineBreak:
+            return "\n"
+        case let inlineCode as InlineCode:
             return inlineCode.code
+        case let symbolLink as SymbolLink:
+            return symbolLink.destination ?? ""
+        case let inlineAttributes as InlineAttributes:
+            return inlineAttributes.children.map(\.plainText).joined()
+        case let inlineHTML as InlineHTML:
+            let source = inlineHTML.format()
+            if MarkdownSemanticSupport.inlineHTMLTransition(from: source) == "kbd" {
+                return ""
+            }
+            return MarkdownSemanticSupport.strippedHTMLText(from: source)
+        case let html as HTMLBlock:
+            return MarkdownSemanticSupport.strippedHTMLText(from: html.format())
+        case let directive as BlockDirective:
+            if let callout = MarkdownSemanticSupport.calloutDefinition(for: directive) {
+                let body = directive.children
+                    .map(\.plainText)
+                    .map(\.normalizedPreviewText)
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+                return body.isEmpty ? callout.label : "\(callout.label) \(body)"
+            }
+            return directive.format()
+        default:
+            return children.map(\.plainText).joined()
         }
-
-        return children.map(\.plainText).joined()
     }
 }
 
 private extension String {
-    var strippedHTMLText: String {
-        replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     var normalizedPreviewText: String {
         replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")

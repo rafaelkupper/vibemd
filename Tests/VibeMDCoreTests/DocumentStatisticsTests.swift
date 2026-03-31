@@ -28,9 +28,9 @@ final class DocumentStatisticsTests: XCTestCase {
 
             <aside>raw html</aside>
 
-            :::note
-            Important
-            :::
+            @Note(title: "Heads up") {
+            Important with ``ReaderTheme.styleSheet`` and ^[chip](class: "md-inline-chip").
+            }
             """,
             baseURL: nil
         )
@@ -43,9 +43,13 @@ final class DocumentStatisticsTests: XCTestCase {
         XCTAssertTrue(renderedText.contains("Completed item"))
         XCTAssertTrue(renderedText.contains("Quoted line"))
         XCTAssertTrue(renderedText.contains("let title = \"VibeMD\""))
-        XCTAssertTrue(renderedText.contains("Name Value"))
+        XCTAssertTrue(renderedText.contains("Name"))
+        XCTAssertTrue(renderedText.contains("Value"))
         XCTAssertTrue(renderedText.contains("raw html"))
+        XCTAssertTrue(renderedText.contains("Heads up"))
         XCTAssertTrue(renderedText.contains("Important"))
+        XCTAssertTrue(renderedText.contains("ReaderTheme.styleSheet"))
+        XCTAssertTrue(renderedText.contains("chip"))
         XCTAssertFalse(renderedText.contains("https://example.com/docs"))
         XCTAssertFalse(renderedText.contains("Preview.png"))
         XCTAssertFalse(renderedText.contains("Screenshot"))

@@ -143,6 +143,20 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
         "<code>\(inlineCode.code.escapedHTML)</code>"
     }
 
+    mutating func visitSymbolLink(_ symbolLink: SymbolLink) -> String {
+        let destination = symbolLink.destination ?? ""
+        return "<code class=\"md-symbol-link\">\(destination.escapedHTML)</code>"
+    }
+
+    mutating func visitInlineAttributes(_ attributes: InlineAttributes) -> String {
+        let content = descend(attributes)
+        guard let className = MarkdownSemanticSupport.inlineAttributeClassName(from: attributes) else {
+            return content
+        }
+
+        return "<span class=\"\(className.escapedHTMLAttribute)\">\(content)</span>"
+    }
+
     mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> String {
         let normalizedLanguage = codeBlock.language?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let languageClass = normalizedLanguage.isEmpty ? "" : " language-\(normalizedLanguage.escapedHTMLAttribute)"
@@ -298,7 +312,7 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
     }
 
     mutating func visitHTMLBlock(_ html: HTMLBlock) -> String {
-        let stripped = strippedHTMLText(from: html.format())
+        let stripped = MarkdownSemanticSupport.strippedHTMLText(from: html.format())
         guard !stripped.isEmpty else {
             return ""
         }
@@ -307,18 +321,28 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
 
     mutating func visitInlineHTML(_ inlineHTML: InlineHTML) -> String {
         let source = inlineHTML.format()
-        if let transition = inlineHTMLTransition(from: source), transition == "kbd" {
+        if let transition = MarkdownSemanticSupport.inlineHTMLTransition(from: source), transition == "kbd" {
             if source.contains("/") {
                 return "</kbd>"
             }
             return "<kbd>"
         }
 
-        return strippedHTMLText(from: source).escapedHTML
+        return MarkdownSemanticSupport.strippedHTMLText(from: source).escapedHTML
     }
 
     mutating func visitBlockDirective(_ blockDirective: BlockDirective) -> String {
-        "<p class=\"fallback-block\">\(blockDirective.format().escapedHTML)</p>"
+        if let callout = MarkdownSemanticSupport.calloutDefinition(for: blockDirective) {
+            let body = descend(blockDirective)
+            let bodyHTML = body.isEmpty ? "" : "<div class=\"md-callout-body\">\(body)</div>"
+            return """
+            <aside class="md-callout \(callout.kind.cssClassName)">
+            <div class="md-callout-label">\(callout.label.escapedHTML)</div>\(bodyHTML)
+            </aside>
+            """
+        }
+
+        return "<p class=\"fallback-block\">\(blockDirective.format().escapedHTML)</p>"
     }
 
     private mutating func descend(_ markup: Markup) -> String {
@@ -440,24 +464,6 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
         }
     }
 
-    private func inlineHTMLTransition(from source: String) -> String? {
-        guard
-            let regex = try? NSRegularExpression(pattern: #"^<\s*/?\s*([A-Za-z0-9]+)[^>]*>$"#),
-            let match = regex.firstMatch(in: source, options: [], range: NSRange(location: 0, length: source.utf16.count)),
-            let nameRange = Range(match.range(at: 1), in: source)
-        else {
-            return nil
-        }
-
-        return source[nameRange].lowercased()
-    }
-
-    private func strippedHTMLText(from source: String) -> String {
-        source
-            .replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private func flattenLeadingParagraphIfPresent(_ html: String) -> String {
         let trimmed = html.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("<p>"), let closingRange = trimmed.range(of: "</p>") else {
@@ -542,12 +548,40 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
 
 private extension Markup {
     var plainText: String {
-        children.map { child in
-            if let text = child as? Text {
-                return text.string
+        switch self {
+        case let text as Text:
+            return text.string
+        case is SoftBreak:
+            return " "
+        case is LineBreak:
+            return "\n"
+        case let inlineCode as InlineCode:
+            return inlineCode.code
+        case let symbolLink as SymbolLink:
+            return symbolLink.destination ?? ""
+        case let inlineAttributes as InlineAttributes:
+            return inlineAttributes.children.map(\.plainText).joined()
+        case let inlineHTML as InlineHTML:
+            let source = inlineHTML.format()
+            if MarkdownSemanticSupport.inlineHTMLTransition(from: source) == "kbd" {
+                return ""
             }
-            return child.plainText
-        }.joined()
+            return MarkdownSemanticSupport.strippedHTMLText(from: source)
+        case let html as HTMLBlock:
+            return MarkdownSemanticSupport.strippedHTMLText(from: html.format())
+        case let directive as BlockDirective:
+            if let callout = MarkdownSemanticSupport.calloutDefinition(for: directive) {
+                let body = directive.children
+                    .map(\.plainText)
+                    .map(\.normalizedHeadingText)
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+                return body.isEmpty ? callout.label : "\(callout.label) \(body)"
+            }
+            return directive.format()
+        default:
+            return children.map(\.plainText).joined()
+        }
     }
 }
 

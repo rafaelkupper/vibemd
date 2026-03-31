@@ -93,6 +93,36 @@ final class DocumentSidebarTests: XCTestCase {
         XCTAssertEqual(outlineItems.map(\.level), [1, 2, 2, 3])
         XCTAssertEqual(outlineItems.map(\.anchorID), ["intro", "details", "details-2", "deep-dive"])
     }
+
+    func testSidebarPreviewUnderstandsCalloutsSymbolLinksAndInlineAttributes() throws {
+        let tempDirectory = try CoreTemporaryDirectory()
+        defer { tempDirectory.remove() }
+
+        let currentURL = try tempDirectory.createTextFile(
+            named: "Current.md",
+            contents: """
+            # Current
+
+            [Guide](Guide.md)
+            """
+        )
+        _ = try tempDirectory.createTextFile(
+            named: "Guide.md",
+            contents: """
+            # Guide
+
+            @Tip(title: "Quick hint") {
+            Use ``ReaderTheme.styleSheet`` with ^[chip text](class: "md-inline-chip").
+            }
+            """
+        )
+
+        let document = parser.parse(source: try String(contentsOf: currentURL), baseURL: currentURL)
+        let entries = DocumentSidebarDataBuilder.sidebarEntries(from: document, assetResolver: assetResolver)
+
+        XCTAssertEqual(entries.map(\.displayTitle), ["Current", "Guide"])
+        XCTAssertEqual(entries.last?.previewText, "Quick hint Use ReaderTheme.styleSheet with chip text.")
+    }
 }
 
 private struct CoreTemporaryDirectory {

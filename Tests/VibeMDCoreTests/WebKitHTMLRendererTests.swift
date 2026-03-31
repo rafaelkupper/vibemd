@@ -33,9 +33,9 @@ final class WebKitHTMLRendererTests: XCTestCase {
 
         <aside>raw html</aside>
 
-        :::note
+        @Note {
         Hello
-        :::
+        }
         """
 
         let output = render(source, baseURL: baseURL)
@@ -75,8 +75,58 @@ final class WebKitHTMLRendererTests: XCTestCase {
         XCTAssertTrue(output.html.contains("src=\"vibemd-local://asset?path="))
         XCTAssertTrue(output.html.contains("VibeMD-preview.png"))
         XCTAssertTrue(output.html.contains("raw html"))
-        XCTAssertTrue(output.html.contains(":::note"))
+        XCTAssertTrue(output.html.contains("class=\"md-callout md-callout-note\""))
+        XCTAssertTrue(output.html.contains("<div class=\"md-callout-label\">Note</div>"))
         XCTAssertEqual(output.outlineItems.first?.anchorID, "title")
+    }
+
+    func testSupportedBlockDirectivesRenderAsSemanticCalloutsAndPreserveNestedMarkdown() {
+        let output = render(
+            """
+            @Warning(title: "Heads up") {
+            Body with **strong** emphasis and `inline code`.
+            }
+            """
+        )
+
+        XCTAssertTrue(output.html.contains("<aside class=\"md-callout md-callout-warning\">"))
+        XCTAssertTrue(output.html.contains("<div class=\"md-callout-label\">Heads up</div>"))
+        XCTAssertTrue(output.html.contains("<strong>strong</strong>"))
+        XCTAssertTrue(output.html.contains("<code>inline code</code>"))
+    }
+
+    func testUnknownBlockDirectivesRemainFallbackBlocks() {
+        let output = render(
+            """
+            @Custom(style: "glass") {
+            Mystery block
+            }
+            """
+        )
+
+        XCTAssertTrue(output.html.contains("<p class=\"fallback-block\">"))
+        XCTAssertTrue(output.html.contains("@Custom"))
+        XCTAssertTrue(output.html.contains("Mystery block"))
+    }
+
+    func testSymbolLinksRenderAsCodeVoice() {
+        let output = render("Use ``ReaderTheme.styleSheet`` for preview.")
+
+        XCTAssertTrue(output.html.contains("<code class=\"md-symbol-link\">ReaderTheme.styleSheet</code>"))
+    }
+
+    func testInlineAttributesPreserveClassOnlyAndIgnoreOtherKeys() {
+        let output = render(#"^[chip text](class: "md-inline-chip", demo: "ignored")"#)
+
+        XCTAssertTrue(output.html.contains("<span class=\"md-inline-chip\">chip text</span>"))
+        XCTAssertFalse(output.html.contains("demo="))
+    }
+
+    func testMalformedInlineAttributesFallBackToChildrenWithoutWrapper() {
+        let output = render(#"^[plain text](class: )"#)
+
+        XCTAssertTrue(output.html.contains("<p>plain text</p>"))
+        XCTAssertFalse(output.html.contains("<span class="))
     }
 
     func testTaggedCodeBlocksEmitTokenSpansWhilePlainCodeRemainsUnstyled() {
@@ -245,22 +295,22 @@ final class WebKitHTMLRendererTests: XCTestCase {
         XCTAssertTrue(output.html.contains("&lt;div class=&quot;notice&quot;&gt;&amp; &quot;quoted&quot;&lt;/div&gt;"))
     }
 
-    func testRawHTMLBlockDirectivesAndKbdHandlingRemainVisible() {
+    func testRawHTMLUnknownDirectivesAndKbdHandlingRemainVisible() {
         let output = render(
             """
             Raw <span>inline</span> html and <kbd>Cmd</kbd>.
 
             <aside>block html</aside>
 
-            :::note
+            @Unknown {
             Important
-            :::
+            }
             """
         )
 
         XCTAssertTrue(output.html.contains("Raw inline html and <kbd>Cmd</kbd>."))
         XCTAssertTrue(output.html.contains("<p class=\"fallback-block\">block html</p>"))
-        XCTAssertTrue(output.html.contains(":::note"))
+        XCTAssertTrue(output.html.contains("@Unknown"))
         XCTAssertTrue(output.html.contains("Important"))
     }
 

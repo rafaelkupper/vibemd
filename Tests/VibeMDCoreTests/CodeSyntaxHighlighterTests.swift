@@ -261,6 +261,56 @@ final class CodeSyntaxHighlighterTests: XCTestCase {
                 """,
                 expectedKinds: [.meta, .keyword, .type, .function, .member]
             ),
+            Sample(
+                language: "html",
+                code: """
+                <!DOCTYPE html>
+                <div class="card" data-title="VibeMD">Title</div>
+                <!-- comment -->
+                """,
+                expectedKinds: [.meta, .type, .member, .string, .comment]
+            ),
+            Sample(
+                language: "css",
+                code: """
+                @media screen {
+                  .card {
+                    color: #fff;
+                    transform: translateX(12px);
+                  }
+                }
+                """,
+                expectedKinds: [.meta, .type, .member, .function, .number]
+            ),
+            Sample(
+                language: "toml",
+                code: """
+                [app]
+                title = "VibeMD"
+                enabled = true
+                """,
+                expectedKinds: [.meta, .type, .string, .keyword]
+            ),
+            Sample(
+                language: "diff",
+                code: """
+                diff --git a/file b/file
+                @@ -1,2 +1,2 @@
+                -old line
+                +new line
+                """,
+                expectedKinds: [.meta, .addition, .deletion]
+            ),
+            Sample(
+                language: "dockerfile",
+                code: """
+                FROM swift:6.1 AS build
+                ARG APP_ENV=prod
+                RUN echo "$APP_ENV"
+                # comment
+                """,
+                expectedKinds: [.keyword, .string, .member, .comment]
+            ),
         ]
 
         for sample in samples {
@@ -280,6 +330,26 @@ final class CodeSyntaxHighlighterTests: XCTestCase {
         assertAlias("hpp", canonical: "cpp", code: "#include <string>\nstd::string render_card();")
         assertAlias("hs", canonical: "haskell", code: "{-# LANGUAGE OverloadedStrings #-}\nrenderCard value = value")
         assertAlias("exs", canonical: "elixir", code: "defmodule Reader do\n  def render_card, do: :ok\nend")
+        assertAlias("xml", canonical: "html", code: "<?xml version=\"1.0\"?><note id=\"one\" />")
+        assertAlias("svg", canonical: "html", code: "<svg viewBox=\"0 0 10 10\"><rect width=\"10\" /></svg>")
+        assertAlias("scss", canonical: "css", code: "@media screen { .card { color: #fff; } }")
+        assertAlias("patch", canonical: "diff", code: "@@ -1 +1 @@\n-old\n+new")
+        assertAlias("docker", canonical: "dockerfile", code: "FROM swift:6.1\nRUN echo hi")
+    }
+
+    func testDiffHighlightedHTMLUsesAdditionAndDeletionClasses() {
+        let html = highlighter.highlightedHTML(
+            code: """
+            @@ -1 +1 @@
+            -old line
+            +new line
+            """,
+            language: "diff"
+        )
+
+        XCTAssertTrue(html.contains("<span class=\"cm-atom\">@@ -1 +1 @@</span>"))
+        XCTAssertTrue(html.contains("<span class=\"cm-negative\">-old line</span>"))
+        XCTAssertTrue(html.contains("<span class=\"cm-positive\">+new line</span>"))
     }
 
     func testUnknownLanguageFallsBackToPlainRuns() {

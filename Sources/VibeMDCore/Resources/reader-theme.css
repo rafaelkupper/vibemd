@@ -223,6 +223,75 @@ kbd {
     box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.22);
 }
 
+.md-callout {
+    margin: 0 0 1.54rem;
+    padding: 0.86rem 1rem 0.95rem;
+    border-left: 3px solid transparent;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.md-callout-label {
+    margin: 0 0 0.48rem;
+    font-size: 0.76rem;
+    line-height: 1.05rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--heading-color);
+}
+
+.md-callout-body > :first-child {
+    margin-top: 0;
+}
+
+.md-callout-body > :last-child {
+    margin-bottom: 0;
+}
+
+.md-callout-note {
+    border-left-color: rgba(125, 161, 188, 0.9);
+    background: rgba(125, 161, 188, 0.11);
+}
+
+.md-callout-tip {
+    border-left-color: rgba(127, 181, 151, 0.9);
+    background: rgba(127, 181, 151, 0.11);
+}
+
+.md-callout-important {
+    border-left-color: rgba(143, 152, 213, 0.92);
+    background: rgba(143, 152, 213, 0.11);
+}
+
+.md-callout-warning {
+    border-left-color: rgba(191, 152, 102, 0.94);
+    background: rgba(191, 152, 102, 0.12);
+}
+
+.md-callout-caution {
+    border-left-color: rgba(190, 125, 125, 0.94);
+    background: rgba(190, 125, 125, 0.12);
+}
+
+.md-symbol-link {
+    color: #C8D6F0;
+    border: 1px solid rgba(200, 214, 240, 0.14);
+}
+
+.md-inline-chip {
+    display: inline-block;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.055);
+    color: var(--heading-color);
+}
+
+.md-inline-muted {
+    color: var(--secondary-text-color);
+}
+
 pre.md-fences {
     padding: 11px 11px 11px 31px;
     margin-bottom: 21px;
@@ -287,6 +356,14 @@ pre.md-fences code {
 .cm-s-inner .cm-header,
 .cm-s-inner .cm-def {
     color: #9496EF;
+}
+
+.cm-s-inner .cm-positive {
+    color: #88C09D;
+}
+
+.cm-s-inner .cm-negative {
+    color: #D48D8D;
 }
 
 table {

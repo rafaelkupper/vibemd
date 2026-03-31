@@ -35,6 +35,24 @@ Plain text should feel neutral. `Inline code` should read like a soft utility ch
 
 You can also mix styles in one sentence: **bold text with `inline code` inside it** and a link to [Apple](https://www.apple.com).
 
+## Callouts
+
+@Note {
+This note should render as a calm native callout with ordinary markdown inside it, including **bold text** and a [same-document anchor](#tables).
+}
+
+@Tip {
+Symbol links should read in code voice, like ``ReaderTheme.styleSheet`` and ``MarkdownParser.parse(source:baseURL:)``.
+}
+
+@Warning(title: "Use a gentle warning tone") {
+Warnings should stay restrained. This one includes `inline code`, *emphasis*, and ^[chip text](class: "md-inline-chip").
+}
+
+## Inline Attribute Spans
+
+Inline attribute spans should preserve only `class`: ^[chip text](class: "md-inline-chip") and ^[muted helper text](class: "md-inline-muted", demo: "ignored").
+
 ## Blockquote
 
 > VibeMD should feel like a quiet native document reader, not a browser tab pretending to be a Mac app.
@@ -119,6 +137,39 @@ app:
 - Added broader fenced-code highlighting
 - Improved local window reuse
 - Kept fallback HTML visible
+```
+
+### HTML
+
+```html
+<!DOCTYPE html>
+<article class="card">
+  <h1 data-title="VibeMD">Reader</h1>
+  <p>Calm, local-first markdown reading.</p>
+</article>
+```
+
+### CSS
+
+```css
+@media (min-width: 900px) {
+  .card {
+    color: #fff;
+    transform: translateX(12px);
+  }
+}
+```
+
+### TOML
+
+```toml
+[app]
+name = "VibeMD"
+sidebar_open = false
+
+[reader]
+theme = "dark"
+smooth_sidebar = true
 ```
 
 ### Go
@@ -261,6 +312,27 @@ class Reader {
 }
 ```
 
+### Diff
+
+```diff
+diff --git a/ReaderTheme.swift b/ReaderTheme.swift
+index 1234567..89abcde 100644
+--- a/ReaderTheme.swift
++++ b/ReaderTheme.swift
+@@ -1,4 +1,4 @@
+-let titlebarFlat = false
++let titlebarFlat = true
+```
+
+### Dockerfile
+
+```dockerfile
+FROM swift:6.1 AS build
+WORKDIR /src
+COPY . .
+RUN swift test
+```
+
 ## Tables
 
 | Surface | Current Treatment | What To Look For | Score |
@@ -300,9 +372,9 @@ This HTML block is intentionally unsupported in the reader and should degrade in
 
 Block directive fallback:
 
-:::note
-This block directive should also degrade into a styled fallback block.
-:::
+@Legacy(kind: "unstyled") {
+This unsupported directive should still degrade into a styled fallback block.
+}
 
 Inline HTML fallback should appear inline without exploding the paragraph: press <kbd>Cmd</kbd> + <kbd>O</kbd> to open another file.
 

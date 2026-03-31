@@ -173,6 +173,14 @@ private struct RenderedTextExtractor: MarkupVisitor {
         inlineCode.code
     }
 
+    mutating func visitSymbolLink(_ symbolLink: SymbolLink) -> String {
+        symbolLink.destination ?? ""
+    }
+
+    mutating func visitInlineAttributes(_ attributes: InlineAttributes) -> String {
+        joinInlineChildren(of: attributes)
+    }
+
     mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> String {
         codeBlock.code.trimmingCharacters(in: .newlines)
     }
@@ -206,23 +214,47 @@ private struct RenderedTextExtractor: MarkupVisitor {
     }
 
     mutating func visitTable(_ table: Table) -> String {
-        tableText(from: table.format())
+        joinChildren(of: table, separator: "\n")
+    }
+
+    mutating func visitTableHead(_ tableHead: Table.Head) -> String {
+        joinChildren(of: tableHead, separator: "\n")
+    }
+
+    mutating func visitTableBody(_ tableBody: Table.Body) -> String {
+        joinChildren(of: tableBody, separator: "\n")
+    }
+
+    mutating func visitTableRow(_ tableRow: Table.Row) -> String {
+        joinChildren(of: tableRow, separator: " ")
+    }
+
+    mutating func visitTableCell(_ tableCell: Table.Cell) -> String {
+        joinChildren(of: tableCell, separator: " ")
     }
 
     mutating func visitHTMLBlock(_ html: HTMLBlock) -> String {
-        strippedHTMLText(from: html.format())
+        MarkdownSemanticSupport.strippedHTMLText(from: html.format())
     }
 
     mutating func visitInlineHTML(_ inlineHTML: InlineHTML) -> String {
         let source = inlineHTML.format()
-        if inlineHTMLTransition(from: source) == "kbd" {
+        if MarkdownSemanticSupport.inlineHTMLTransition(from: source) == "kbd" {
             return ""
         }
-        return strippedHTMLText(from: source)
+        return MarkdownSemanticSupport.strippedHTMLText(from: source)
     }
 
     mutating func visitBlockDirective(_ blockDirective: BlockDirective) -> String {
-        blockDirective.format().trimmingCharacters(in: .whitespacesAndNewlines)
+        if let callout = MarkdownSemanticSupport.calloutDefinition(for: blockDirective) {
+            let body = joinBlockChildren(of: blockDirective)
+            return [callout.label, body]
+                .map(\.normalizedRenderedText)
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n\n")
+        }
+
+        return blockDirective.format().trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private mutating func joinInlineChildren(of markup: Markup) -> String {
@@ -240,61 +272,6 @@ private struct RenderedTextExtractor: MarkupVisitor {
             .joined(separator: separator)
     }
 
-    private func inlineHTMLTransition(from source: String) -> String? {
-        guard
-            let regex = try? NSRegularExpression(pattern: #"^<\s*/?\s*([A-Za-z0-9]+)[^>]*>$"#),
-            let match = regex.firstMatch(in: source, options: [], range: NSRange(location: 0, length: source.utf16.count)),
-            let nameRange = Range(match.range(at: 1), in: source)
-        else {
-            return nil
-        }
-
-        return source[nameRange].lowercased()
-    }
-
-    private func strippedHTMLText(from source: String) -> String {
-        source
-            .replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func tableText(from markdown: String) -> String {
-        parseTableRows(from: markdown)
-            .map { row in
-                row.joined(separator: " ")
-            }
-            .joined(separator: "\n")
-    }
-
-    private func parseTableRows(from markdown: String) -> [[String]] {
-        let lines = markdown
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
-            .filter { $0.contains("|") }
-
-        var rows: [[String]] = []
-        for (index, line) in lines.enumerated() {
-            if index == 1, isAlignmentRow(line) {
-                continue
-            }
-
-            let rawCells = line
-                .split(separator: "|", omittingEmptySubsequences: false)
-                .map { String($0).trimmingCharacters(in: .whitespaces) }
-            let cells = rawCells.filter { !$0.isEmpty }
-            if !cells.isEmpty {
-                rows.append(cells)
-            }
-        }
-
-        return rows
-    }
-
-    private func isAlignmentRow(_ line: String) -> Bool {
-        let candidate = line.replacingOccurrences(of: "|", with: "")
-        let charset = CharacterSet(charactersIn: ":- ")
-        return candidate.unicodeScalars.allSatisfy { charset.contains($0) }
-    }
 }
 
 private extension String {
