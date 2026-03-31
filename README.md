@@ -2,7 +2,7 @@
 
 You guessed it. This is entirely vibe-coded. I didn't look at a single line of code. I just wanted a small light `.md` viewer, but apparently it doesn't exist or I'm really bad at looking for things on the internet. 
 
-VibeMD uses a small AppKit document shell with a WebKit-based reader surface for fast, read-only markdown viewing.
+VibeMD uses a small AppKit document shell with a WebKit-based reader surface for fast, read-only markdown viewing. The current app includes unified dark window chrome, document stats in the titlebar, and a left sidebar for linked-document navigation and document outline browsing.
 
 ## Build
 
@@ -32,6 +32,10 @@ Then do a short manual smoke pass:
 - open `RenderingShowcase.md`
 - confirm the titlebar blends into the reader background and the stats pill appears after load
 - switch the stats pill between words, minutes, lines, and characters and confirm the choice persists
+- open and close the sidebar and confirm the window frame stays fixed while the reader reflows smoothly
+- switch between `Documents` and `Outline` and confirm the sidebar stays visually stable
+- in `Documents`, open a linked markdown file and confirm it loads in the current window
+- in `Outline`, click a heading and confirm it scrolls to the right section and tracks the active section while reading
 - confirm the local preview image renders
 - open the local markdown link and verify it reuses an existing window for the same file, otherwise cascades a new window
 - open the external link and verify it hands off to the default browser
@@ -43,7 +47,12 @@ Then do a short manual smoke pass:
 - Read-only multi-window AppKit document UI
 - Dark WebKit reader styling with local CSS resources
 - Unified dark titlebar chrome with a trailing document-stats pill
+- Titlebar stats pill with app-wide preference for words, minutes, lines, or characters
+- Left sidebar with `Documents` and `Outline` views toggled from the titlebar
+- Sidebar document navigation that replaces the current file in the same window
+- Sidebar outline navigation with active-section tracking while scrolling
 - Off-main-thread parsing
+- Syntax-highlighted fenced code blocks for common languages including Swift, shell, JSON, YAML, Markdown, Go, Ruby, Python, Elixir, JavaScript, TypeScript, PHP, C, C++, Rust, Zig, Haskell, and Java
 - External links open in the default browser
 - Local markdown links reuse open windows by file identity and cascade new windows when needed
 - Local images load through a custom local asset scheme in WebKit
