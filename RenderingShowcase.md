@@ -62,6 +62,8 @@ You can also mix styles in one sentence: **bold text with `inline code` inside i
 
 ## Code Blocks
 
+### Swift
+
 ```swift
 struct ReaderTheme {
     let readableWidth: Double
@@ -76,9 +78,185 @@ func render(_ markdown: String) -> String {
 }
 ```
 
+### Bash
+
 ```bash
 ./scripts/build-app.sh release
 open build/VibeMD.app
+```
+
+### JSON
+
+```json
+{
+  "name": "VibeMD",
+  "version": 1,
+  "features": {
+    "reader": true,
+    "syntaxHighlighting": true
+  }
+}
+```
+
+### YAML
+
+```yaml
+app:
+  name: "VibeMD"
+  window_width: 1040
+  syntax:
+    enabled: true
+    theme: dark
+```
+
+### Markdown
+
+```markdown
+# Release Notes
+
+- Added broader fenced-code highlighting
+- Improved local window reuse
+- Kept fallback HTML visible
+```
+
+### Go
+
+```go
+package main
+
+type Reader struct {
+    Title string
+}
+
+func renderCard(reader Reader) string {
+    return reader.Title
+}
+```
+
+### Ruby
+
+```ruby
+class Reader
+  def render_card
+    @title = "VibeMD"
+  end
+end
+```
+
+### Python
+
+```python
+class Reader:
+    @property
+    def title(self):
+        return self._title
+```
+
+### Elixir
+
+```elixir
+defmodule Reader do
+  def render_card(reader) do
+    reader.title
+  end
+end
+```
+
+### JavaScript
+
+```javascript
+class Reader {}
+
+const renderCard = (props) => props.title;
+```
+
+### TypeScript
+
+```typescript
+interface Props {
+  title: string;
+}
+
+const renderCard = (props: Props) => props.title;
+```
+
+### PHP
+
+```php
+<?php
+
+class Reader {
+    public function renderCard(): string {
+        return $this->title;
+    }
+}
+```
+
+### C
+
+```c
+#include <stdio.h>
+
+int render_card(struct reader *value) {
+    return value->title[0];
+}
+```
+
+### C++
+
+```cpp
+#include <string>
+
+class Reader {};
+
+std::string render_card(Reader* value) {
+    return value->title;
+}
+```
+
+### Rust
+
+```rust
+#[derive(Debug)]
+struct Reader {
+    title: String,
+}
+
+fn render_card(reader: Reader) -> String {
+    reader.title
+}
+```
+
+### Zig
+
+```zig
+const Reader = struct {
+    title: []const u8,
+};
+
+fn renderCard(reader: Reader) []const u8 {
+    return reader.title;
+}
+```
+
+### Haskell
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
+data Reader = Reader
+
+renderCard reader = reader
+```
+
+### Java
+
+```java
+class Reader {
+    String renderCard(Reader value) {
+        return value.title;
+    }
+}
 ```
 
 ## Tables

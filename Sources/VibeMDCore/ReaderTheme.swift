@@ -322,8 +322,11 @@ pre.md-fences code {
 }
 
 .cm-s-inner .cm-variable,
-.cm-s-inner .cm-operator,
 .cm-s-inner .cm-property {
+    color: #D2D8EA;
+}
+
+.cm-s-inner .cm-operator {
     color: var(--text-color);
 }
 

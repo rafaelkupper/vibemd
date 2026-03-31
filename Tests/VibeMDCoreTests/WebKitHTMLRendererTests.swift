@@ -53,6 +53,9 @@ final class WebKitHTMLRendererTests: XCTestCase {
         XCTAssertTrue(output.html.contains("@media only screen and (min-width: 1400px)"))
         XCTAssertTrue(output.html.contains("line-height: 1.66rem;"))
         XCTAssertTrue(output.html.contains("padding: 11px 11px 11px 31px;"))
+        XCTAssertTrue(output.html.contains(".cm-s-inner .cm-property {"))
+        XCTAssertTrue(output.html.contains(".cm-s-inner .cm-atom {"))
+        XCTAssertTrue(output.html.contains(".cm-s-inner .cm-variable-2 {"))
         XCTAssertTrue(output.html.contains("<h1>Title</h1>"))
         XCTAssertTrue(output.html.contains("<blockquote>"))
         XCTAssertTrue(output.html.contains("border-left: solid 2px var(--rule-color);"))
@@ -96,6 +99,35 @@ final class WebKitHTMLRendererTests: XCTestCase {
         XCTAssertTrue(swiftOutput.html.contains("<pre class=\"md-fences\" lang=\"swift\"><code class=\"cm-s-inner language-swift\">"))
         XCTAssertFalse(plainOutput.html.contains("<span class=\"cm-keyword\">"))
         XCTAssertFalse(plainOutput.html.contains("<span class=\"cm-def\">"))
+    }
+
+    func testAliasTaggedCodeBlocksHighlightAndPreserveOriginalLanguageTag() {
+        let jsxOutput = render(
+            """
+            ```jsx
+            const renderCard = (props) => props.title
+            ```
+            """
+        )
+        let tsxOutput = render(
+            """
+            ```tsx
+            interface Props { title: string }
+            const renderCard = (props: Props) => props.title
+            ```
+            """
+        )
+
+        XCTAssertTrue(jsxOutput.html.contains("<pre class=\"md-fences\" lang=\"jsx\"><code class=\"cm-s-inner language-jsx\">"))
+        XCTAssertTrue(jsxOutput.html.contains("cm-keyword"))
+        XCTAssertTrue(jsxOutput.html.contains("cm-variable-2"))
+        XCTAssertTrue(jsxOutput.html.contains("cm-property"))
+
+        XCTAssertTrue(tsxOutput.html.contains("<pre class=\"md-fences\" lang=\"tsx\"><code class=\"cm-s-inner language-tsx\">"))
+        XCTAssertTrue(tsxOutput.html.contains("cm-keyword"))
+        XCTAssertTrue(tsxOutput.html.contains("cm-def"))
+        XCTAssertTrue(tsxOutput.html.contains("cm-variable-2"))
+        XCTAssertTrue(tsxOutput.html.contains("cm-property"))
     }
 
     func testTableColumnWidthsCoverPresetAndHeuristicLayouts() {
