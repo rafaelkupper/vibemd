@@ -5,6 +5,16 @@ import XCTest
 
 @MainActor
 final class MarkdownReaderDocumentTests: XCTestCase {
+    func testObjectiveCNewPathCanInstantiateMarkdownDocument() throws {
+        let document = try XCTUnwrap(
+            (MarkdownReaderDocument.self as AnyObject)
+                .perform(NSSelectorFromString("new"))?
+                .takeRetainedValue() as? MarkdownReaderDocument
+        )
+
+        document.close()
+    }
+
     func testDocumentCreatesConcreteWebKitReaderWindowController() throws {
         let reader = RecordingReaderViewController()
         let document = MarkdownReaderDocument(readerControllerFactory: { reader })

@@ -33,6 +33,17 @@ final class MarkdownReaderDocument: NSDocument {
     private var currentActiveHeadingID: String?
     var initialCascadeSourceWindow: NSWindow?
 
+    override init() {
+        self.assetResolver = AssetResolver()
+        self.scrollStateStore = ScrollStateStore()
+        self.renderScheduler = MarkdownRenderWorker.schedule
+        self.linkTargetHandler = MarkdownReaderDocument.defaultHandle
+        self.readerControllerFactory = { WebKitReaderViewController() }
+        self.statisticPreferenceStore = .shared
+        self.sourceLoader = MarkdownReaderDocument.loadSource
+        super.init()
+    }
+
     init(
         assetResolver: AssetResolver = AssetResolver(),
         scrollStateStore: ScrollStateStore = ScrollStateStore(),
