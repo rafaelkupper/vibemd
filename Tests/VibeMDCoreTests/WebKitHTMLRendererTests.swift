@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import VibeMDCore
 
@@ -40,6 +41,8 @@ final class WebKitHTMLRendererTests: XCTestCase {
         let output = render(source, baseURL: baseURL)
 
         XCTAssertEqual(output.baseURL, baseURL.deletingLastPathComponent())
+        XCTAssertGreaterThan(output.statistics.words, 0)
+        XCTAssertGreaterThan(output.statistics.lines, 0)
         XCTAssertTrue(output.html.contains("<div id=\"write\">"))
         XCTAssertTrue(output.html.contains("--bg-color: #383E44;"))
         XCTAssertTrue(output.html.contains("--text-color: #BCC3CA;"))
@@ -56,7 +59,7 @@ final class WebKitHTMLRendererTests: XCTestCase {
         XCTAssertTrue(output.html.contains(".cm-s-inner .cm-property {"))
         XCTAssertTrue(output.html.contains(".cm-s-inner .cm-atom {"))
         XCTAssertTrue(output.html.contains(".cm-s-inner .cm-variable-2 {"))
-        XCTAssertTrue(output.html.contains("<h1>Title</h1>"))
+        XCTAssertTrue(output.html.contains("<h1 id=\"title\">Title</h1>"))
         XCTAssertTrue(output.html.contains("<blockquote>"))
         XCTAssertTrue(output.html.contains("border-left: solid 2px var(--rule-color);"))
         XCTAssertTrue(output.html.contains("class=\"task-list\""))
@@ -73,6 +76,7 @@ final class WebKitHTMLRendererTests: XCTestCase {
         XCTAssertTrue(output.html.contains("VibeMD-preview.png"))
         XCTAssertTrue(output.html.contains("raw html"))
         XCTAssertTrue(output.html.contains(":::note"))
+        XCTAssertEqual(output.outlineItems.first?.anchorID, "title")
     }
 
     func testTaggedCodeBlocksEmitTokenSpansWhilePlainCodeRemainsUnstyled() {
@@ -240,6 +244,30 @@ final class WebKitHTMLRendererTests: XCTestCase {
         XCTAssertTrue(output.html.contains("<p class=\"fallback-block\">block html</p>"))
         XCTAssertTrue(output.html.contains(":::note"))
         XCTAssertTrue(output.html.contains("Important"))
+    }
+
+    func testRendererProducesSidebarMetadataForCurrentDocumentAndLinkedMarkdownFiles() {
+        let temporaryDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        let linkedURL = temporaryDirectory.appendingPathComponent("Guide.md")
+        try? Data("# Linked Guide\n\nLinked preview text.".utf8).write(to: linkedURL)
+        let currentURL = temporaryDirectory.appendingPathComponent("Showcase.md")
+        let source = """
+        # Showcase Title
+
+        Current preview text.
+
+        [Guide](Guide.md)
+        [Guide Again](Guide.md#section)
+        [License](LICENSE)
+        """
+        let output = render(source, baseURL: currentURL)
+
+        XCTAssertEqual(output.sidebarEntries.map(\.displayTitle), ["Linked Guide", "Showcase Title"])
+        XCTAssertEqual(output.sidebarEntries.last?.previewText, "Current preview text.")
+        XCTAssertEqual(output.outlineItems.map(\.anchorID), ["showcase-title"])
     }
 
     private func render(_ source: String, baseURL: URL? = nil) -> WebKitRenderOutput {

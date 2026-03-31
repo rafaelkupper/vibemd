@@ -11,6 +11,12 @@ public final class WebKitHTMLRenderer {
     }
 
     public func render(document: MarkdownDocument) -> WebKitRenderOutput {
+        let statistics = RenderedTextDocumentStatistics.statistics(from: document)
+        let sidebarEntries = DocumentSidebarDataBuilder.sidebarEntries(
+            from: document,
+            assetResolver: assetResolver
+        )
+        let outlineItems = DocumentSidebarDataBuilder.outlineItems(from: document)
         var visitor = WebKitHTMLRenderVisitor(
             baseURL: document.baseURL,
             assetResolver: assetResolver,
@@ -37,7 +43,10 @@ public final class WebKitHTMLRenderer {
 
         return WebKitRenderOutput(
             html: html,
-            baseURL: document.baseURL?.deletingLastPathComponent()
+            baseURL: document.baseURL?.deletingLastPathComponent(),
+            statistics: statistics,
+            sidebarEntries: sidebarEntries,
+            outlineItems: outlineItems
         )
     }
 }
@@ -48,6 +57,17 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
     let baseURL: URL?
     let assetResolver: AssetResolver
     let codeSyntaxHighlighter: CodeSyntaxHighlighter
+    private var headingSlugger = HeadingAnchorSlugger()
+
+    init(
+        baseURL: URL?,
+        assetResolver: AssetResolver,
+        codeSyntaxHighlighter: CodeSyntaxHighlighter
+    ) {
+        self.baseURL = baseURL
+        self.assetResolver = assetResolver
+        self.codeSyntaxHighlighter = codeSyntaxHighlighter
+    }
 
     private var readAccessDirectoryURL: URL? {
         guard let baseURL else {
@@ -106,7 +126,14 @@ private struct WebKitHTMLRenderVisitor: MarkupVisitor {
     }
 
     mutating func visitHeading(_ heading: Heading) -> String {
-        "<h\(heading.level)>\(descend(heading))</h\(heading.level)>"
+        let title = heading.plainText.normalizedHeadingText
+        let idAttribute: String
+        if title.isEmpty {
+            idAttribute = ""
+        } else {
+            idAttribute = " id=\"\(headingSlugger.slug(for: title).escapedHTMLAttribute)\""
+        }
+        return "<h\(heading.level)\(idAttribute)>\(descend(heading))</h\(heading.level)>"
     }
 
     mutating func visitInlineCode(_ inlineCode: InlineCode) -> String {
@@ -461,5 +488,12 @@ private extension String {
             return String(dropFirst(prefix.count))
         }
         return self
+    }
+
+    var normalizedHeadingText: String {
+        replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

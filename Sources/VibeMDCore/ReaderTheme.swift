@@ -9,7 +9,24 @@ public enum ReaderTheme {
     public static let contentHorizontalPadding = 31
     public static let bodyLineHeight = "1.66rem"
 
+    static let sidebarBackgroundHex = "#212427"
+    static let sidebarSelectionHex = "#1C2023"
+    static let sidebarHoverAlpha: CGFloat = 0.028
+    static let sidebarChromeFillAlpha: CGFloat = 0.024
+    static let sidebarChromeBorderAlpha: CGFloat = 0.035
+    static let sidebarChromeSelectedFillAlpha: CGFloat = 0.065
+    static let sidebarChromeHoverFillAlpha: CGFloat = 0.04
+
     public static let backgroundColor = NSColor.reader(hex: 0x383E44)
+    public static let sidebarBackgroundColor = NSColor.reader(hex: 0x212427)
+    public static let sidebarSelectionColor = NSColor.reader(hex: 0x1C2023)
+    public static let sidebarHoverColor = NSColor.white.withAlphaComponent(sidebarHoverAlpha)
+    public static let sidebarChromeFillColor = NSColor.white.withAlphaComponent(sidebarChromeFillAlpha)
+    public static let sidebarChromeBorderColor = NSColor.white.withAlphaComponent(sidebarChromeBorderAlpha)
+    public static let sidebarChromeSelectedFillColor = NSColor.white.withAlphaComponent(sidebarChromeSelectedFillAlpha)
+    public static let sidebarChromeHoverFillColor = NSColor.white.withAlphaComponent(sidebarChromeHoverFillAlpha)
+    public static let sidebarPrimaryTextColor = NSColor(white: 0.9, alpha: 0.96)
+    public static let sidebarSecondaryTextColor = NSColor(white: 0.66, alpha: 0.92)
 
     public static let styleSheet = loadStyleSheet()
 
@@ -100,6 +117,8 @@ body {
     color: var(--text-color);
     fill: currentColor;
     line-height: 1.66rem;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
 }
 
 body,
@@ -436,11 +455,9 @@ img {
 
 private extension NSColor {
     static func reader(hex: Int, alpha: CGFloat = 1) -> NSColor {
-        NSColor(
-            calibratedRed: CGFloat((hex >> 16) & 0xFF) / 255,
-            green: CGFloat((hex >> 8) & 0xFF) / 255,
-            blue: CGFloat(hex & 0xFF) / 255,
-            alpha: alpha
-        )
+        let red = CGFloat((hex >> 16) & 0xFF) / 255
+        let green = CGFloat((hex >> 8) & 0xFF) / 255
+        let blue = CGFloat(hex & 0xFF) / 255
+        return NSColor(srgbRed: red, green: green, blue: blue, alpha: alpha)
     }
 }

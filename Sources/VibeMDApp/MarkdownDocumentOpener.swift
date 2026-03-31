@@ -117,11 +117,11 @@ enum MarkdownDocumentOpener {
 }
 
 @MainActor
-private final class OpenDocumentRegistry {
+final class OpenDocumentRegistry {
     static let shared = OpenDocumentRegistry()
 
     private var documents: [ObjectIdentifier: NSDocument] = [:]
-    private var documentIdentities: [String: ObjectIdentifier] = [:]
+    private var documentIdentities: [String: Set<ObjectIdentifier>] = [:]
 
     var count: Int {
         documents.count
@@ -131,28 +131,38 @@ private final class OpenDocumentRegistry {
         let identifier = ObjectIdentifier(document)
         documents[identifier] = document
         if let identity = identity(for: document) {
-            documentIdentities[identity] = identifier
+            documentIdentities[identity, default: []].insert(identifier)
         }
     }
 
     func release(_ document: NSDocument) {
         let identifier = ObjectIdentifier(document)
         documents.removeValue(forKey: identifier)
-        documentIdentities = documentIdentities.filter { $0.value != identifier }
+        remove(identifier: identifier)
     }
 
     func document(for url: URL) -> MarkdownReaderDocument? {
         let identity = Self.identity(for: url)
-        guard let objectIdentifier = documentIdentities[identity] else {
+        guard let identifiers = documentIdentities[identity], !identifiers.isEmpty else {
             return nil
         }
 
-        guard let document = documents[objectIdentifier] as? MarkdownReaderDocument else {
+        let candidates = identifiers.compactMap { documents[$0] as? MarkdownReaderDocument }
+        if candidates.isEmpty {
             documentIdentities.removeValue(forKey: identity)
             return nil
         }
 
-        return document
+        return preferredDocument(from: candidates)
+    }
+
+    func reindex(_ document: NSDocument) {
+        let identifier = ObjectIdentifier(document)
+        documents[identifier] = document
+        remove(identifier: identifier)
+        if let identity = identity(for: document) {
+            documentIdentities[identity, default: []].insert(identifier)
+        }
     }
 
     private func identity(for document: NSDocument) -> String? {
@@ -165,5 +175,40 @@ private final class OpenDocumentRegistry {
 
     private static func identity(for url: URL) -> String {
         MarkdownDocumentOpener.normalizedFileURL(for: url).path
+    }
+
+    private func remove(identifier: ObjectIdentifier) {
+        var updatedIdentities: [String: Set<ObjectIdentifier>] = [:]
+        for (identity, identifiers) in documentIdentities {
+            let filtered = identifiers.filter { $0 != identifier }
+            if !filtered.isEmpty {
+                updatedIdentities[identity] = filtered
+            }
+        }
+        documentIdentities = updatedIdentities
+    }
+
+    private func preferredDocument(from documents: [MarkdownReaderDocument]) -> MarkdownReaderDocument? {
+        documents.max { lhs, rhs in
+            documentScore(lhs) < documentScore(rhs)
+        }
+    }
+
+    private func documentScore(_ document: MarkdownReaderDocument) -> Int {
+        guard let window = document.windowControllers.compactMap(\.window).first else {
+            return 0
+        }
+
+        var score = 0
+        if window.isVisible {
+            score += 1
+        }
+        if window.isMainWindow {
+            score += 2
+        }
+        if window.isKeyWindow {
+            score += 4
+        }
+        return score
     }
 }

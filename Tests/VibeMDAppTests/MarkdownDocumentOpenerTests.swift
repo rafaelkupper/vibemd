@@ -96,6 +96,35 @@ final class MarkdownDocumentOpenerTests: XCTestCase {
         XCTAssertTrue(MarkdownDocumentOpener.currentMarkdownWindowForTesting() === secondWindow)
     }
 
+    func testNormalOpenStillReusesPreferredWindowWhenMultipleDocumentsTrackSameFile() throws {
+        _ = NSApplication.shared
+        defer { closeOpenMarkdownDocuments() }
+        let tempDirectory = try TemporaryTestDirectory()
+        defer { tempDirectory.remove() }
+        let firstURL = try tempDirectory.createTextFile(named: "One.md", contents: "# One")
+        let secondURL = try tempDirectory.createTextFile(named: "Two.md", contents: "# Two")
+
+        try MarkdownDocumentOpener.open(url: firstURL)
+        try MarkdownDocumentOpener.open(url: secondURL)
+
+        let secondDocument = try XCTUnwrap(
+            openMarkdownDocuments().first(where: { $0.fileURL == secondURL })
+        )
+        secondDocument.navigateInCurrentWindow(to: firstURL)
+
+        let navigationExpectation = expectation(description: "same-window navigation")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            navigationExpectation.fulfill()
+        }
+        wait(for: [navigationExpectation], timeout: 2)
+
+        XCTAssertEqual(openMarkdownDocuments().filter { $0.fileURL == firstURL }.count, 2)
+
+        try MarkdownDocumentOpener.open(url: firstURL)
+
+        XCTAssertEqual(openMarkdownDocuments().count, 2)
+    }
+
     private func openMarkdownDocuments() -> [MarkdownReaderDocument] {
         NSDocumentController.shared.documents.compactMap { $0 as? MarkdownReaderDocument }
     }

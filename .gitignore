@@ -1,6 +1,7 @@
 # SwiftPM and local build output
 .build/
 build/
+.cache/
 DerivedData/
 benchmark-output/
 

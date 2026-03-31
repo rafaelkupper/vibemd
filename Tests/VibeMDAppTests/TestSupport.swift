@@ -10,6 +10,7 @@ final class RecordingReaderViewController: WebKitReaderViewController {
     var appliedOutputs: [WebKitRenderOutput] = []
     var appliedInitialScrollFractions: [Double?] = []
     var stubbedCurrentScrollFraction: Double = 0
+    var scrolledHeadingIDs: [String] = []
 
     override var currentScrollFraction: Double {
         stubbedCurrentScrollFraction
@@ -22,6 +23,10 @@ final class RecordingReaderViewController: WebKitReaderViewController {
     override func apply(renderOutput: WebKitRenderOutput, initialScrollFraction: Double?) {
         appliedOutputs.append(renderOutput)
         appliedInitialScrollFractions.append(initialScrollFraction)
+    }
+
+    override func scrollToHeading(id: String) {
+        scrolledHeadingIDs.append(id)
     }
 }
 

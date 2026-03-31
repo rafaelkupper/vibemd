@@ -53,6 +53,9 @@ final class WebKitReaderViewControllerTests: XCTestCase {
     func testScrollScriptUsesMutablePendingFlag() {
         XCTAssertTrue(WebKitReaderViewController.scrollScriptSourceForTesting.contains("var pending = false;"))
         XCTAssertFalse(WebKitReaderViewController.scrollScriptSourceForTesting.contains("let pending = false;"))
+        XCTAssertTrue(WebKitReaderViewController.scrollScriptSourceForTesting.contains("vibemdActiveHeading"))
+        XCTAssertTrue(WebKitReaderViewController.scrollScriptSourceForTesting.contains("window.scrollX !== 0"))
+        XCTAssertTrue(WebKitReaderViewController.scrollScriptSourceForTesting.contains("event.deltaX"))
     }
 
     func testReportedScrollFractionUpdatesStateAndNotifiesObservers() {
@@ -68,6 +71,30 @@ final class WebKitReaderViewControllerTests: XCTestCase {
 
         wait(for: [scrollExpectation], timeout: 5)
         XCTAssertEqual(controller.currentScrollFraction, 0.85, accuracy: 0.0001)
+    }
+
+    func testReportedActiveHeadingUpdatesStateAndNotifiesObservers() {
+        let controller = WebKitReaderViewController()
+        let headingExpectation = expectation(description: "heading callback")
+        controller.onActiveHeadingChange = { headingID in
+            if headingID == "section-two" {
+                headingExpectation.fulfill()
+            }
+        }
+
+        controller.handleReportedActiveHeading("section-two")
+
+        wait(for: [headingExpectation], timeout: 5)
+        XCTAssertEqual(controller.currentActiveHeadingID, "section-two")
+    }
+
+    func testScrollToHeadingBuildsAnchorScrollScript() {
+        let script = WebKitReaderViewController.scrollToHeadingScript(for: #"deep"section"#)
+
+        XCTAssertTrue(script.contains(#"document.getElementById("deep\"section")"#))
+        XCTAssertTrue(script.contains("window.scrollTo"))
+        XCTAssertTrue(script.contains("const offset = 28;"))
+        XCTAssertFalse(script.contains("scrollIntoView"))
     }
 
     func testHandleActivatedLinkForwardsExternalMarkdownAndOtherFileURLs() {
@@ -108,17 +135,16 @@ final class WebKitReaderViewControllerTests: XCTestCase {
     }
 
     private func evaluateString(_ script: String, in controller: WebKitReaderViewController) -> Any? {
-        var result: Any?
-        var receivedError: Error?
+        let state = JavaScriptEvaluationState()
         let expectation = expectation(description: "evaluate js")
         controller.evaluateJavaScriptForTesting(script) { value, error in
-            result = value
-            receivedError = error
+            state.result = value
+            state.receivedError = error
             expectation.fulfill()
         }
         wait(for: [expectation], timeout: 5)
-        XCTAssertNil(receivedError)
-        return result
+        XCTAssertNil(state.receivedError)
+        return state.result
     }
 
     private func evaluateDouble(_ script: String, in controller: WebKitReaderViewController) -> Double? {
@@ -158,4 +184,9 @@ final class WebKitReaderViewControllerTests: XCTestCase {
         let path = url?.path ?? ""
         return path.isEmpty ? "/" : path
     }
+}
+
+private final class JavaScriptEvaluationState: @unchecked Sendable {
+    var result: Any?
+    var receivedError: Error?
 }
