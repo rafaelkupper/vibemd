@@ -74,6 +74,7 @@ final class DocumentSidebarViewController: NSViewController {
     private let modeToggleView = SidebarModeToggleView()
     private let titleLabel = NSTextField(labelWithString: DocumentSidebarMode.documents.title)
     private let scrollView = NSScrollView()
+    private let scrollDocumentView = NSView()
     private let contentStackView = NSStackView()
 
     private var sidebarEntries: [DocumentSidebarEntry] = []
@@ -123,24 +124,23 @@ final class DocumentSidebarViewController: NSViewController {
         contentStackView.setHuggingPriority(.required, for: .vertical)
         contentStackView.setContentCompressionResistancePriority(.required, for: .vertical)
 
-        let documentView = NSView()
-        documentView.translatesAutoresizingMaskIntoConstraints = false
-        documentView.addSubview(contentStackView)
+        scrollDocumentView.translatesAutoresizingMaskIntoConstraints = false
+        scrollDocumentView.addSubview(contentStackView)
         NSLayoutConstraint.activate([
-            contentStackView.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
-            contentStackView.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
-            contentStackView.topAnchor.constraint(equalTo: documentView.topAnchor),
-            contentStackView.bottomAnchor.constraint(lessThanOrEqualTo: documentView.bottomAnchor),
+            contentStackView.leadingAnchor.constraint(equalTo: scrollDocumentView.leadingAnchor),
+            contentStackView.trailingAnchor.constraint(equalTo: scrollDocumentView.trailingAnchor),
+            contentStackView.topAnchor.constraint(equalTo: scrollDocumentView.topAnchor),
+            contentStackView.bottomAnchor.constraint(lessThanOrEqualTo: scrollDocumentView.bottomAnchor),
         ])
-        scrollView.documentView = documentView
+        scrollView.documentView = scrollDocumentView
         let clipView = scrollView.contentView
         NSLayoutConstraint.activate([
-            documentView.leadingAnchor.constraint(equalTo: clipView.leadingAnchor),
-            documentView.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
-            documentView.topAnchor.constraint(equalTo: clipView.topAnchor),
-            documentView.bottomAnchor.constraint(equalTo: clipView.bottomAnchor),
-            documentView.widthAnchor.constraint(equalTo: clipView.widthAnchor),
-            documentView.bottomAnchor.constraint(greaterThanOrEqualTo: contentStackView.bottomAnchor),
+            scrollDocumentView.leadingAnchor.constraint(equalTo: clipView.leadingAnchor),
+            scrollDocumentView.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
+            scrollDocumentView.topAnchor.constraint(equalTo: clipView.topAnchor),
+            scrollDocumentView.widthAnchor.constraint(equalTo: clipView.widthAnchor),
+            scrollDocumentView.heightAnchor.constraint(greaterThanOrEqualTo: clipView.heightAnchor),
+            scrollDocumentView.bottomAnchor.constraint(greaterThanOrEqualTo: contentStackView.bottomAnchor),
         ])
 
         view.addSubview(headerView)
@@ -214,6 +214,20 @@ final class DocumentSidebarViewController: NSViewController {
         return contentStackView.arrangedSubviews.map(\.frame)
     }
 
+    var arrangedRowHeightsForTesting: [CGFloat] {
+        arrangedRowFramesForTesting.map(\.height)
+    }
+
+    var scrollDocumentHeightForTesting: CGFloat {
+        view.layoutSubtreeIfNeeded()
+        return scrollDocumentView.frame.height
+    }
+
+    var scrollViewportHeightForTesting: CGFloat {
+        view.layoutSubtreeIfNeeded()
+        return scrollView.contentView.bounds.height
+    }
+
     var outlineLabelMinXPositionsForTesting: [CGFloat] {
         view.layoutSubtreeIfNeeded()
         return contentStackView.arrangedSubviews.compactMap { row in
@@ -284,6 +298,8 @@ final class DocumentSidebarViewController: NSViewController {
         row.translatesAutoresizingMaskIntoConstraints = false
         row.setContentHuggingPriority(.defaultLow, for: .horizontal)
         row.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        row.setContentHuggingPriority(.required, for: .vertical)
+        row.setContentCompressionResistancePriority(.required, for: .vertical)
         row.widthAnchor.constraint(equalTo: contentStackView.widthAnchor).isActive = true
     }
 }

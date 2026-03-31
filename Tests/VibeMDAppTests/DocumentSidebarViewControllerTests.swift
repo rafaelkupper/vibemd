@@ -62,4 +62,26 @@ final class DocumentSidebarViewControllerTests: XCTestCase {
         XCTAssertLessThan(positions[1], positions[2])
         XCTAssertLessThan(positions[2], positions[3])
     }
+
+    func testOutlineRowsStayCompactAndOverflowIntoScrollView() {
+        let controller = DocumentSidebarViewController()
+        controller.loadViewIfNeeded()
+        controller.view.frame = NSRect(x: 0, y: 0, width: DocumentSidebarViewController.sidebarWidth, height: 520)
+        controller.setMode(.outline)
+        controller.apply(
+            sidebarEntries: [],
+            outlineItems: (1...40).map { index in
+                DocumentOutlineItem(
+                    title: "Heading \(index)",
+                    level: min((index % 6) + 1, 6),
+                    anchorID: "heading-\(index)"
+                )
+            }
+        )
+        controller.view.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(controller.arrangedRowHeightsForTesting.isEmpty)
+        XCTAssertLessThan(controller.arrangedRowHeightsForTesting.max() ?? 0, 28)
+        XCTAssertGreaterThan(controller.scrollDocumentHeightForTesting, controller.scrollViewportHeightForTesting)
+    }
 }
