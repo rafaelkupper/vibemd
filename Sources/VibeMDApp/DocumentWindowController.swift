@@ -69,6 +69,41 @@ enum WindowChromeSuppression {
 }
 
 @MainActor
+private final class DocumentWindow: NSWindow {
+    weak var findResponder: WebKitReaderViewController?
+
+    @objc func showFindInterface(_ sender: Any?) {
+        guard let findResponder else {
+            return
+        }
+
+        findResponder.showFindInterface(sender)
+    }
+
+    @objc func findNextMatch(_ sender: Any?) {
+        findResponder?.findNextMatch(sender)
+    }
+
+    @objc func findPreviousMatch(_ sender: Any?) {
+        findResponder?.findPreviousMatch(sender)
+    }
+
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        switch item.action {
+        case #selector(showFindInterface(_:)),
+             #selector(findNextMatch(_:)),
+             #selector(findPreviousMatch(_:)):
+            guard let findResponder else {
+                return false
+            }
+            return findResponder.validateUserInterfaceItem(item)
+        default:
+            return super.validateUserInterfaceItem(item)
+        }
+    }
+}
+
+@MainActor
 final class DocumentWindowController: NSWindowController {
     static let initialContentSize = NSSize(width: 1040, height: 760)
     static let cascadeOffset: CGFloat = 28
@@ -98,12 +133,13 @@ final class DocumentWindowController: NSWindowController {
         )
         contentViewController.loadViewIfNeeded()
         contentViewController.view.frame = NSRect(origin: .zero, size: initialContentSize)
-        let window = NSWindow(
+        let window = DocumentWindow(
             contentRect: NSRect(origin: .zero, size: initialContentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        window.findResponder = Self.findNativeFindResponder(in: contentViewController)
         window.contentViewController = chromeViewController
         window.setContentSize(initialContentSize)
         window.minSize = NSSize(width: 520, height: 360)
@@ -322,6 +358,20 @@ final class DocumentWindowController: NSWindowController {
             x: min(max(origin.x, visibleFrame.minX), maxX),
             y: min(max(origin.y, visibleFrame.minY), maxY)
         )
+    }
+
+    private static func findNativeFindResponder(in controller: NSViewController) -> WebKitReaderViewController? {
+        if let reader = controller as? WebKitReaderViewController {
+            return reader
+        }
+
+        for child in controller.children {
+            if let reader = findNativeFindResponder(in: child) {
+                return reader
+            }
+        }
+
+        return nil
     }
 }
 

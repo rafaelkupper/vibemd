@@ -239,6 +239,40 @@ final class DocumentWindowControllerTests: XCTestCase {
         XCTAssertEqual(second.sidebarModeForTesting, .documents)
     }
 
+    func testWindowRoutesFindActionsToHostedReader() throws {
+        let reader = WebKitReaderViewController()
+        reader.setSuppressFindExecutionForTesting(true)
+        let windowController = DocumentWindowController(contentViewController: reader)
+        defer { windowController.close() }
+
+        let window = try XCTUnwrap(windowController.window)
+        windowController.showWindow(nil)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+
+        let findItem = NSMenuItem(
+            title: "Find…",
+            action: #selector(WebKitReaderViewController.showFindInterface(_:)),
+            keyEquivalent: "f"
+        )
+        let nextItem = NSMenuItem(
+            title: "Find Next",
+            action: #selector(WebKitReaderViewController.findNextMatch(_:)),
+            keyEquivalent: "g"
+        )
+
+        XCTAssertTrue(window.validateUserInterfaceItem(findItem))
+        XCTAssertFalse(window.validateUserInterfaceItem(nextItem))
+
+        window.perform(#selector(WebKitReaderViewController.showFindInterface(_:)), with: findItem)
+        reader.setFindQueryForTesting("Heading")
+        XCTAssertTrue(window.validateUserInterfaceItem(nextItem))
+        window.perform(#selector(WebKitReaderViewController.findNextMatch(_:)), with: nextItem)
+
+        XCTAssertTrue(reader.isFindBarVisibleForTesting)
+        XCTAssertEqual(reader.lastFindQueryForTesting, "Heading")
+        XCTAssertEqual(reader.lastFindDirectionForTesting, "next")
+    }
+
     func testSidebarForwardsDocumentAndOutlineSelections() {
         let windowController = DocumentWindowController(contentViewController: NSViewController())
         defer { windowController.close() }

@@ -5,6 +5,71 @@ import XCTest
 
 @MainActor
 final class WebKitReaderViewControllerTests: XCTestCase {
+    func testShowFindInterfaceRevealsFindBar() {
+        let controller = WebKitReaderViewController()
+        let window = hostInWindow(controller)
+        defer { window.close() }
+
+        controller.showFindInterface(nil)
+
+        XCTAssertTrue(controller.isFindBarVisibleForTesting)
+    }
+
+    func testFindCommandsRecordDirectionAndQuery() {
+        let controller = WebKitReaderViewController()
+        let window = hostInWindow(controller)
+        defer { window.close() }
+
+        controller.setSuppressFindExecutionForTesting(true)
+        controller.setFindQueryForTesting("Heading")
+        controller.findNextMatch(nil)
+        controller.findPreviousMatch(nil)
+
+        XCTAssertEqual(controller.lastFindQueryForTesting, "Heading")
+        XCTAssertEqual(controller.lastFindDirectionForTesting, "previous")
+    }
+
+    func testValidateUserInterfaceItemReflectsQueryAvailability() {
+        let controller = WebKitReaderViewController()
+        let window = hostInWindow(controller)
+        defer { window.close() }
+
+        XCTAssertTrue(controller.validateUserInterfaceItem(makeMenuItem(action: #selector(WebKitReaderViewController.showFindInterface(_:)))))
+        XCTAssertFalse(controller.validateUserInterfaceItem(makeMenuItem(action: #selector(WebKitReaderViewController.findNextMatch(_:)))))
+
+        controller.setFindQueryForTesting("Heading")
+
+        XCTAssertTrue(controller.validateUserInterfaceItem(makeMenuItem(action: #selector(WebKitReaderViewController.findNextMatch(_:)))))
+    }
+
+    func testIncrementalFindReportsMissingMatches() {
+        let controller = WebKitReaderViewController()
+        let window = hostInWindow(controller)
+        defer { window.close() }
+
+        controller.setSuppressFindExecutionForTesting(true)
+        controller.setSuppressedFindMatchResultForTesting(false)
+        controller.setFindQueryForTesting("absent-text")
+        controller.triggerFindQueryChangeForTesting()
+
+        XCTAssertEqual(controller.lastFindMatchFoundForTesting, false)
+        XCTAssertEqual(controller.findStatusTextForTesting, "No matches")
+    }
+
+    func testIncrementalFindFindsExistingText() {
+        let controller = WebKitReaderViewController()
+        let window = hostInWindow(controller)
+        defer { window.close() }
+
+        controller.setSuppressFindExecutionForTesting(true)
+        controller.setSuppressedFindMatchResultForTesting(true)
+        controller.setFindQueryForTesting("Hello")
+        controller.triggerFindQueryChangeForTesting()
+
+        XCTAssertEqual(controller.lastFindMatchFoundForTesting, true)
+        XCTAssertEqual(controller.findStatusTextForTesting, "")
+    }
+
     func testDisplayLoadingShowsPlaceholderHTML() {
         let controller = WebKitReaderViewController()
         let window = hostInWindow(controller)
@@ -183,6 +248,10 @@ final class WebKitReaderViewControllerTests: XCTestCase {
     private func normalizedPath(_ url: URL?) -> String {
         let path = url?.path ?? ""
         return path.isEmpty ? "/" : path
+    }
+
+    private func makeMenuItem(action: Selector) -> NSMenuItem {
+        NSMenuItem(title: "Find", action: action, keyEquivalent: "")
     }
 }
 

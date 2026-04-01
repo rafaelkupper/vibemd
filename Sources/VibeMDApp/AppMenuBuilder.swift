@@ -7,14 +7,17 @@ enum AppMenuBuilder {
 
         let appItem = NSMenuItem()
         let fileItem = NSMenuItem()
+        let editItem = NSMenuItem()
         let windowItem = NSMenuItem()
 
         mainMenu.addItem(appItem)
         mainMenu.addItem(fileItem)
+        mainMenu.addItem(editItem)
         mainMenu.addItem(windowItem)
 
         appItem.submenu = appMenu()
         fileItem.submenu = fileMenu(appDelegate: appDelegate)
+        editItem.submenu = editMenu()
         windowItem.submenu = windowsMenu
 
         return mainMenu
@@ -50,5 +53,44 @@ enum AppMenuBuilder {
         menu.addItem(closeItem)
 
         return menu
+    }
+
+    private static func editMenu() -> NSMenu {
+        let menu = NSMenu(title: "Edit")
+        menu.addItem(findMenuItem(
+            title: "Find…",
+            keyEquivalent: "f",
+            modifiers: [.command],
+            action: #selector(WebKitReaderViewController.showFindInterface(_:))
+        ))
+        menu.addItem(findMenuItem(
+            title: "Find Next",
+            keyEquivalent: "g",
+            modifiers: [.command],
+            action: #selector(WebKitReaderViewController.findNextMatch(_:))
+        ))
+        menu.addItem(findMenuItem(
+            title: "Find Previous",
+            keyEquivalent: "G",
+            modifiers: [.command, .shift],
+            action: #selector(WebKitReaderViewController.findPreviousMatch(_:))
+        ))
+        return menu
+    }
+
+    private static func findMenuItem(
+        title: String,
+        keyEquivalent: String,
+        modifiers: NSEvent.ModifierFlags,
+        action: Selector
+    ) -> NSMenuItem {
+        let item = NSMenuItem(
+            title: title,
+            action: action,
+            keyEquivalent: keyEquivalent
+        )
+        item.target = nil
+        item.keyEquivalentModifierMask = modifiers
+        return item
     }
 }
